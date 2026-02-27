@@ -1,0 +1,106 @@
+{
+  "app": {
+    "name": "Hollow",
+    "tagline": "A safe space for your unspoken thoughts."
+  },
+  "welcome": {
+    "begin": "Begin"
+  },
+  "onboarding": {
+    "nickname": {
+      "title": "What should I call you?",
+      "subtitle": "A nickname is enough. No real name needed.",
+      "placeholder": "Your nickname",
+      "continue": "Continue"
+    },
+    "style": {
+      "title": "How would you like me to respond?",
+      "subtitle": "You can change this anytime in Settings.",
+      "empathetic": "Empathetic",
+      "empatheticDesc": "Warm, understanding, emotionally attuned",
+      "analytical": "Analytical",
+      "analyticalDesc": "Rational, structured, clarity-focused",
+      "balanced": "Balanced",
+      "balancedDesc": "A blend of warmth and clear thinking",
+      "start": "Start"
+    }
+  },
+  "tabs": {
+    "chat": "Chat",
+    "memory": "Memory",
+    "settings": "Settings"
+  },
+  "chat": {
+    "newSession": "New Session",
+    "session": "Session",
+    "placeholder": "What's on your mind...",
+    "noSessions": "No conversations yet",
+    "noSessionsHint": "Start your first session",
+    "deleteSession": "Delete Session",
+    "deleteConfirm": "This conversation will be permanently deleted. This cannot be undone.",
+    "cancel": "Cancel",
+    "delete": "Delete"
+  },
+  "voice": {
+    "listening": "Listening...",
+    "thinking": "Thinking...",
+    "speaking": "Speaking...",
+    "sessionTime": "Session Time",
+    "tapToSpeak": "Tap to speak",
+    "holdToSpeak": "Hold to speak"
+  },
+  "memory": {
+    "title": "Your Memory",
+    "people": "People",
+    "events": "Events",
+    "preferences": "Preferences",
+    "addMemory": "Add Memory",
+    "editMemory": "Edit Memory",
+    "category": "Category",
+    "memoryTitle": "Title",
+    "content": "Content",
+    "save": "Save",
+    "empty": "No memories yet",
+    "emptyHint": "Memories will be automatically extracted from your conversations."
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "nickname": "Nickname",
+    "conversationStyle": "Conversation Style",
+    "language": "Language",
+    "languageAuto": "System Default",
+    "languageEn": "English",
+    "languageZh": "Chinese",
+    "privacy": "Privacy & Security",
+    "e2ee": "End-to-end encryption status",
+    "e2eeActive": "Active",
+    "localStorage": "Local storage management",
+    "biometricLock": "Biometric lock",
+    "autoDestruct": "Auto-destruct rules",
+    "eraseAll": "Erase All Data",
+    "eraseConfirm": "All conversations, memories, and settings will be permanently deleted. This cannot be undone.",
+    "aiSettings": "AI Settings",
+    "modelSelection": "Model selection",
+    "responseStyle": "Response style",
+    "concise": "Concise",
+    "elaborate": "Elaborate",
+    "subscription": "Subscription",
+    "currentPlan": "Current plan",
+    "premiumMonthly": "Premium Monthly",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter your API key",
+    "about": "About",
+    "version": "Version"
+  },
+  "common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "done": "Done",
+    "back": "Back",
+    "warning": "Warning"
+  }
+}

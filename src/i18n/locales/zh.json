@@ -1,0 +1,106 @@
+{
+  "app": {
+    "name": "Hollow",
+    "tagline": "为你未曾说出口的想法，留一个安全的角落。"
+  },
+  "welcome": {
+    "begin": "开始"
+  },
+  "onboarding": {
+    "nickname": {
+      "title": "我该怎么称呼你？",
+      "subtitle": "一个昵称就好，不需要真实姓名。",
+      "placeholder": "你的昵称",
+      "continue": "继续"
+    },
+    "style": {
+      "title": "你希望我以什么方式回应？",
+      "subtitle": "你随时可以在设置中更改。",
+      "empathetic": "温暖共情",
+      "empatheticDesc": "温柔、理解、情感共鸣",
+      "analytical": "理性分析",
+      "analyticalDesc": "理性、结构化、注重清晰",
+      "balanced": "均衡平和",
+      "balancedDesc": "温暖与理性的融合",
+      "start": "开始"
+    }
+  },
+  "tabs": {
+    "chat": "对话",
+    "memory": "记忆",
+    "settings": "设置"
+  },
+  "chat": {
+    "newSession": "新对话",
+    "session": "对话",
+    "placeholder": "此刻你在想什么...",
+    "noSessions": "还没有对话",
+    "noSessionsHint": "开始你的第一次对话",
+    "deleteSession": "删除对话",
+    "deleteConfirm": "此对话将被永久删除，无法恢复。",
+    "cancel": "取消",
+    "delete": "删除"
+  },
+  "voice": {
+    "listening": "聆听中...",
+    "thinking": "思考中...",
+    "speaking": "回复中...",
+    "sessionTime": "对话时长",
+    "tapToSpeak": "轻触说话",
+    "holdToSpeak": "长按说话"
+  },
+  "memory": {
+    "title": "你的记忆",
+    "people": "人物",
+    "events": "事件",
+    "preferences": "偏好",
+    "addMemory": "添加记忆",
+    "editMemory": "编辑记忆",
+    "category": "分类",
+    "memoryTitle": "标题",
+    "content": "内容",
+    "save": "保存",
+    "empty": "暂无记忆",
+    "emptyHint": "记忆将从你的对话中自动提取。"
+  },
+  "settings": {
+    "title": "设置",
+    "profile": "个人资料",
+    "nickname": "昵称",
+    "conversationStyle": "对话风格",
+    "language": "语言",
+    "languageAuto": "跟随系统",
+    "languageEn": "English",
+    "languageZh": "中文",
+    "privacy": "隐私与安全",
+    "e2ee": "端到端加密状态",
+    "e2eeActive": "已启用",
+    "localStorage": "本地存储管理",
+    "biometricLock": "生物识别锁",
+    "autoDestruct": "自动销毁规则",
+    "eraseAll": "清除所有数据",
+    "eraseConfirm": "所有对话、记忆和设置将被永久删除，无法恢复。",
+    "aiSettings": "AI 设置",
+    "modelSelection": "模型选择",
+    "responseStyle": "回复风格",
+    "concise": "简洁",
+    "elaborate": "详细",
+    "subscription": "订阅管理",
+    "currentPlan": "当前计划",
+    "premiumMonthly": "高级月度会员",
+    "apiKey": "API 密钥",
+    "apiKeyPlaceholder": "输入你的 API 密钥",
+    "about": "关于",
+    "version": "版本"
+  },
+  "common": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "done": "完成",
+    "back": "返回",
+    "warning": "警告"
+  }
+}
