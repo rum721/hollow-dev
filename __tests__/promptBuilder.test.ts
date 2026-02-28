@@ -36,10 +36,11 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('In-depth replies');
   });
 
-  it('should include absolute rules', () => {
+  it('should include absolute rules and response style', () => {
     const prompt = buildSystemPrompt('User', 'empathetic', 50, '', 'en');
     expect(prompt).toContain('Absolute Rules');
-    expect(prompt).toContain('Response Priority');
+    expect(prompt).toContain('How You Respond');
+    expect(prompt).toContain('Permission List');
   });
 
   it('should include safety boundaries (lightweight, no specific hotline numbers)', () => {
