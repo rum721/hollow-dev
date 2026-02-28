@@ -8,6 +8,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { colors, spacing, borderRadius } from '../../theme';
 import { useI18n } from '../../i18n';
 
@@ -37,6 +38,7 @@ export function ChatInput({ onSend, onMicPress, disabled }: Props) {
   const handleSend = () => {
     const trimmed = text.trim();
     if (trimmed) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onSend(trimmed);
       setText('');
     }

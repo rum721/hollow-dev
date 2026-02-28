@@ -33,8 +33,8 @@ export function WelcomeScreen() {
       <View style={[styles.bottom, isDesktop && styles.bottomDesktop]}>
         <AmberButton
           title={t('welcome.begin')}
-          onPress={() => navigation.navigate('OnboardingNickname')}
-          style={[styles.button, isDesktop && styles.buttonDesktop]}
+          onPress={() => navigation.navigate('OnboardingPrivacy')}
+          style={StyleSheet.flatten([styles.button, isDesktop ? styles.buttonDesktop : undefined])}
         />
       </View>
     </View>

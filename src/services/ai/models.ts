@@ -18,7 +18,7 @@ export const PROVIDER_BASE_URLS: Record<ModelProvider, string> = {
   stepfun: 'https://api.stepfun.com/v1',
   doubao: 'https://ark.cn-beijing.volces.com/api/v3',
   spark: 'https://spark-api-open.xf-yun.com/v1',
-  manus: 'https://api.manus.im/v1',
+  manus: 'https://api.manus.ai',
 };
 
 export const MODEL_LIST: ModelInfo[] = [
@@ -180,7 +180,7 @@ export const MODEL_LIST: ModelInfo[] = [
     id: 'manus',
     label: 'Manus',
     provider: 'manus',
-    apiModelId: 'manus-1',
+    apiModelId: 'manus-1.6',
     apiKeyField: 'manusApiKey',
   },
 ];

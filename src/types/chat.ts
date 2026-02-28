@@ -1,11 +1,14 @@
+export type SessionStatus = 'active' | 'archived' | 'destroyed';
+
 export interface Session {
   id: string;
   title: string;
   sessionNumber: number;
   createdAt: string;
   updatedAt: string;
-  isArchived: boolean;
+  status: SessionStatus;
   lastMessage?: string;
+  messageCount?: number;
 }
 
 export interface Message {

@@ -1,22 +1,29 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Feather } from '@expo/vector-icons';
 import { ChatHeader } from '../../components/chat/ChatHeader';
 import { ChatInput } from '../../components/chat/ChatInput';
 import { UserMessage } from '../../components/chat/UserMessage';
 import { AIMessage } from '../../components/chat/AIMessage';
 import { TypingIndicator } from '../../components/chat/TypingIndicator';
+import { UpgradePrompt } from '../../components/chat/UpgradePrompt';
+import { HollowText } from '../../components/common/HollowText';
 import { useChatStore } from '../../store/useChatStore';
+import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { useStreaming } from '../../hooks/useStreaming';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { colors, spacing } from '../../theme';
 import type { ChatStackParamList } from '../../types/navigation';
 import type { Message } from '../../types/chat';
 
 type RouteType = RouteProp<ChatStackParamList, 'ChatSession'>;
 type NavType = NativeStackNavigationProp<ChatStackParamList, 'ChatSession'>;
+
+const EMPTY_MESSAGES: Message[] = [];
 
 export function ChatSessionScreen() {
   const route = useRoute<RouteType>();
@@ -25,14 +32,25 @@ export function ChatSessionScreen() {
   const flatListRef = useRef<FlatList>(null);
   const { isDesktop, chatMaxWidth } = useResponsive();
 
-  const messages = useChatStore((s) => s.messages[sessionId] ?? []);
+  const messages = useChatStore((s) => s.messages[sessionId] ?? EMPTY_MESSAGES);
   const isStreaming = useChatStore((s) => s.isStreaming);
   const streamingText = useChatStore((s) => s.streamingText);
   const session = useChatStore((s) => s.sessions.find((se) => se.id === sessionId));
+  const loadMessages = useChatStore((s) => s.loadMessages);
+  const canSendMessage = useSubscriptionStore((s) => s.canSendMessage);
   const { sendMessage } = useStreaming();
+  const { isConnected } = useNetworkStatus();
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
-  const handleSend = (text: string) => {
-    sendMessage(sessionId, text);
+  useEffect(() => {
+    loadMessages(sessionId);
+  }, [sessionId]);
+
+  const handleSend = async (text: string) => {
+    const result = await sendMessage(sessionId, text);
+    if (result?.limitReached) {
+      setShowUpgrade(true);
+    }
   };
 
   const handleVoiceMode = () => {
@@ -89,14 +107,29 @@ export function ChatSessionScreen() {
           style={{ width: '100%' }}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={isStreaming && !streamingText ? <TypingIndicator /> : null}
+          windowSize={5}
+          maxToRenderPerBatch={10}
+          initialNumToRender={10}
+          removeClippedSubviews={Platform.OS === 'android'}
         />
       </View>
+      {showUpgrade && (
+        <UpgradePrompt onDismiss={() => setShowUpgrade(false)} />
+      )}
+      {!isConnected && (
+        <View style={styles.offlineBanner}>
+          <Feather name="wifi-off" size={14} color={colors.danger} />
+          <HollowText variant="caption" color={colors.danger} style={{ marginLeft: 6 }}>
+            Network disconnected
+          </HollowText>
+        </View>
+      )}
       <View style={[styles.inputArea, isDesktop && styles.inputAreaDesktop]}>
         <View style={isDesktop ? { maxWidth: chatMaxWidth, width: '100%' } : { flex: 1 }}>
           <ChatInput
             onSend={handleSend}
             onMicPress={handleVoiceMode}
-            disabled={isStreaming}
+            disabled={isStreaming || showUpgrade}
           />
         </View>
       </View>
@@ -119,10 +152,18 @@ const styles = StyleSheet.create({
   },
   inputArea: {
     flexDirection: 'row',
+    paddingBottom: 80,
   },
   inputAreaDesktop: {
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
   },
 });

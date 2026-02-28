@@ -1,16 +1,26 @@
-import React, { useState } from 'react';
-import { StyleSheet, ScrollView, Alert, View, TextInput, TouchableOpacity, Modal, FlatList } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { StyleSheet, ScrollView, Alert, View, TextInput, TouchableOpacity, Modal, FlatList, Platform, ActivityIndicator, PanResponder } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { HollowText } from '../../components/common/HollowText';
 import { SettingsGroup } from '../../components/settings/SettingsGroup';
 import { SettingsRow } from '../../components/settings/SettingsRow';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { useI18n } from '../../i18n';
 import { useResponsive } from '../../hooks/useResponsive';
 import { MODEL_LIST, getModelInfo } from '../../services/ai/models';
+import { validateApiKey } from '../../services/ai/aiRouter';
 import { colors, spacing, borderRadius, fontSize } from '../../theme';
-import type { LanguageSetting, ConversationStyle, ModelInfo } from '../../types/settings';
+import { TIER_LABELS, TIER_CONFIG } from '../../types/subscription';
+import type { SubscriptionTier } from '../../types/subscription';
+import type { LanguageSetting, ConversationStyle, ModelInfo, AutoDestructDays } from '../../types/settings';
+import type { SettingsStackParamList } from '../../types/navigation';
+
+const TIERS: SubscriptionTier[] = ['free', 'lite', 'vip', 'premium'];
 
 const LANGUAGES: { key: LanguageSetting; labelKey: string }[] = [
   { key: 'auto', labelKey: 'settings.languageAuto' },
@@ -24,34 +34,97 @@ const STYLES: { key: ConversationStyle; labelKey: string }[] = [
   { key: 'balanced', labelKey: 'onboarding.style.balanced' },
 ];
 
+const AUTO_DESTRUCT_OPTIONS: AutoDestructDays[] = [null, 7, 30, 90];
+
 export function SettingsScreen() {
   const { t } = useI18n();
   const store = useSettingsStore();
   const { isDesktop } = useResponsive();
+  const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
+  const tier = useSubscriptionStore((s) => s.tier);
+  const setTier = useSubscriptionStore((s) => s.setTier);
+  const todayUsage = useSubscriptionStore((s) => s.todayUsage);
+  const getRemainingMessages = useSubscriptionStore((s) => s.getRemainingMessages);
+  const remaining = getRemainingMessages();
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showApiInput, setShowApiInput] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<{ valid: boolean; error?: string } | null>(null);
+
+  const sliderTrackRef = useRef<View>(null);
+  const [trackLayout, setTrackLayout] = useState({ x: 0, width: 0 });
+
+  const handleSliderTouch = (pageX: number) => {
+    if (trackLayout.width === 0) return;
+    const ratio = Math.max(0, Math.min(1, (pageX - trackLayout.x) / trackLayout.width));
+    const value = Math.round(ratio * 100 / 10) * 10; // snap to 10s
+    store.setResponseStyleValue(value);
+  };
+
+  const sliderPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => handleSliderTouch(evt.nativeEvent.pageX),
+      onPanResponderMove: (evt) => handleSliderTouch(evt.nativeEvent.pageX),
+    })
+  ).current;
 
   const currentModel = getModelInfo(store.selectedModel);
   const langLabel = LANGUAGES.find((l) => l.key === store.language);
   const styleLabel = STYLES.find((s) => s.key === store.conversationStyle);
 
   const cycleLang = () => {
+    Haptics.selectionAsync();
     const idx = LANGUAGES.findIndex((l) => l.key === store.language);
     const next = LANGUAGES[(idx + 1) % LANGUAGES.length];
     store.setLanguage(next.key);
   };
 
   const cycleStyle = () => {
+    Haptics.selectionAsync();
     const idx = STYLES.findIndex((s) => s.key === store.conversationStyle);
     const next = STYLES[(idx + 1) % STYLES.length];
     store.setConversationStyle(next.key);
   };
 
+  const autoDestructLabel = store.autoDestructDays === null
+    ? t('settings.autoDestructNever')
+    : t('settings.autoDestructDays', { days: String(store.autoDestructDays) });
+
+  const cycleAutoDestruct = () => {
+    const idx = AUTO_DESTRUCT_OPTIONS.indexOf(store.autoDestructDays);
+    const next = AUTO_DESTRUCT_OPTIONS[(idx + 1) % AUTO_DESTRUCT_OPTIONS.length];
+    store.setAutoDestructDays(next);
+  };
+
+  const cycleTier = () => {
+    Haptics.selectionAsync();
+    const idx = TIERS.indexOf(tier);
+    const next = TIERS[(idx + 1) % TIERS.length];
+    setTier(next);
+    // Reset today's usage so user can test immediately after switching
+    useSubscriptionStore.setState({ todayUsage: 0 });
+  };
+
   const handleErase = () => {
-    Alert.alert(t('common.warning'), t('settings.eraseConfirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('common.confirm'), style: 'destructive', onPress: () => {} },
-    ]);
+    if (Platform.OS === 'web') {
+      if (window.confirm(t('settings.eraseConfirm'))) { /* TODO */ }
+    } else {
+      Alert.alert(t('common.warning'), t('settings.eraseConfirm'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.confirm'), style: 'destructive', onPress: () => {} },
+      ]);
+    }
+  };
+
+  const handleValidateKey = async () => {
+    if (!currentModel || !currentApiKey) return;
+    setValidating(true);
+    setValidationResult(null);
+    const result = await validateApiKey(store.selectedModel, currentApiKey);
+    setValidationResult(result);
+    setValidating(false);
   };
 
   const currentApiKey = currentModel ? (store.apiKeys[currentModel.apiKeyField] ?? '') : '';
@@ -114,7 +187,12 @@ export function SettingsScreen() {
               switchValue={store.biometricEnabled}
               onSwitchChange={store.setBiometricEnabled}
             />
-            <SettingsRow icon="clock" label={t('settings.autoDestruct')} showArrow />
+            <SettingsRow
+              icon="clock"
+              label={t('settings.autoDestruct')}
+              value={autoDestructLabel}
+              onPress={cycleAutoDestruct}
+            />
             <SettingsRow icon="alert-triangle" label={t('settings.eraseAll')} danger onPress={handleErase} />
           </SettingsGroup>
 
@@ -137,23 +215,61 @@ export function SettingsScreen() {
                 <HollowText variant="label" color={colors.textMuted} style={styles.apiLabel}>
                   {currentModel.label} API Key
                 </HollowText>
-                <TextInput
-                  style={styles.apiInput}
-                  value={currentApiKey}
-                  onChangeText={(val) => store.setApiKey(currentModel.apiKeyField, val)}
-                  placeholder={t('settings.apiKeyPlaceholder')}
-                  placeholderTextColor={colors.textMuted}
-                  selectionColor={colors.amber}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
+                <View style={styles.apiInputGroup}>
+                  <TextInput
+                    style={[styles.apiInput, { flex: 1 }]}
+                    value={currentApiKey}
+                    onChangeText={(val) => {
+                      store.setApiKey(currentModel.apiKeyField, val);
+                      setValidationResult(null);
+                    }}
+                    placeholder={t('settings.apiKeyPlaceholder')}
+                    placeholderTextColor={colors.textMuted}
+                    selectionColor={colors.amber}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    style={[styles.validateBtn, !currentApiKey && styles.validateBtnDisabled]}
+                    onPress={handleValidateKey}
+                    disabled={!currentApiKey || validating}
+                    activeOpacity={0.7}
+                  >
+                    {validating ? (
+                      <ActivityIndicator size="small" color={colors.background} />
+                    ) : (
+                      <HollowText variant="caption" color={colors.background}>
+                        {t('settings.validate')}
+                      </HollowText>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {validationResult && (
+                  <HollowText
+                    variant="label"
+                    color={validationResult.valid ? colors.success : colors.danger}
+                    style={styles.validationResult}
+                  >
+                    {validationResult.valid ? t('settings.keyValid') : (validationResult.error ?? t('settings.keyInvalid'))}
+                  </HollowText>
+                )}
               </View>
             )}
             <View style={styles.sliderRow}>
               <HollowText variant="caption">{t('settings.concise')}</HollowText>
-              <View style={styles.sliderTrack}>
+              <View
+                ref={sliderTrackRef}
+                style={styles.sliderTrack}
+                onLayout={() => {
+                  sliderTrackRef.current?.measureInWindow((x, _y, w) => {
+                    setTrackLayout({ x, width: w });
+                  });
+                }}
+                {...sliderPanResponder.panHandlers}
+              >
                 <View style={[styles.sliderFill, { width: `${store.responseStyleValue}%` }]} />
+                <View style={[styles.sliderThumb, { left: `${store.responseStyleValue}%` }]} />
               </View>
               <HollowText variant="caption">{t('settings.elaborate')}</HollowText>
             </View>
@@ -161,7 +277,46 @@ export function SettingsScreen() {
 
           {/* Subscription */}
           <SettingsGroup title={t('settings.subscription')}>
-            <SettingsRow icon="credit-card" label={t('settings.currentPlan')} value={t('settings.premiumMonthly')} />
+            <SettingsRow
+              icon="credit-card"
+              label={t('settings.currentPlan')}
+              value={TIER_LABELS[tier]?.en ?? 'Free'}
+              onPress={() => navigation.navigate('Subscription')}
+            />
+            <SettingsRow
+              icon="bar-chart-2"
+              label={t('settings.dailyUsage') ?? 'Daily Usage'}
+              value={TIER_CONFIG[tier].dailyLimit === Infinity
+                ? `${todayUsage} / ∞`
+                : `${todayUsage} / ${TIER_CONFIG[tier].dailyLimit}`}
+            />
+            <SettingsRow
+              icon="zap"
+              label={t('settings.remaining') ?? 'Remaining'}
+              value={remaining === Infinity ? '∞' : String(remaining)}
+              valueColor={remaining <= 0 ? colors.danger : remaining <= 3 ? colors.amber : colors.success}
+            />
+          </SettingsGroup>
+
+          {/* About */}
+          <SettingsGroup title={t('settings.about') ?? 'About'}>
+            <SettingsRow
+              icon="file-text"
+              label={t('settings.privacyPolicy') ?? 'Privacy Policy'}
+              showArrow
+              onPress={() => navigation.navigate('PrivacyPolicy')}
+            />
+            <SettingsRow
+              icon="book-open"
+              label={t('settings.termsOfService') ?? 'Terms of Service'}
+              showArrow
+              onPress={() => navigation.navigate('TermsOfService')}
+            />
+            <SettingsRow
+              icon="info"
+              label={t('settings.version') ?? 'Version'}
+              value="1.0.0"
+            />
           </SettingsGroup>
         </View>
       </ScrollView>
@@ -222,6 +377,11 @@ const styles = StyleSheet.create({
   apiLabel: {
     marginBottom: spacing.xs,
   },
+  apiInputGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   apiInput: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -230,6 +390,20 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: fontSize.sm,
     backgroundColor: colors.surface,
+  },
+  validateBtn: {
+    backgroundColor: colors.amber,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.sm,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  validateBtnDisabled: {
+    opacity: 0.4,
+  },
+  validationResult: {
+    marginTop: spacing.xs,
   },
   sliderRow: {
     flexDirection: 'row',
@@ -242,12 +416,20 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: colors.surfaceLight,
     borderRadius: 2,
-    overflow: 'hidden',
   },
   sliderFill: {
     height: 4,
     backgroundColor: colors.amber,
     borderRadius: 2,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.amber,
+    top: -7,
+    marginLeft: -9,
   },
   // Modal
   modalOverlay: {

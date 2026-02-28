@@ -1,9 +1,14 @@
 import { streamAnthropicChat } from './anthropicClient';
 import { streamOpenAICompatibleChat } from './openaiCompatibleClient';
+import { streamManusChat, validateManusApiKey } from './manusClient';
 import { getModelInfo, PROVIDER_BASE_URLS } from './models';
 import { buildSystemPrompt } from './promptBuilder';
-import type { ChatMessage, StreamCallbacks } from './types';
+import { anonymizeMessages, shouldAnonymize } from './dataAnonymizer';
+import { getPremiumModelId } from './premiumRouter';
+import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
 import type { ConversationStyle } from '../../types/settings';
+import { useSubscriptionStore } from '../../store/useSubscriptionStore';
+import { apiFetch } from './apiFetch';
 
 interface RouterConfig {
   selectedModel: string;
@@ -13,16 +18,43 @@ interface RouterConfig {
   responseStyleValue: number;
   memoryContext: string;
   locale: string;
+  store?: boolean;
 }
 
 export async function sendChatMessage(
   messages: ChatMessage[],
   config: RouterConfig,
   callbacks: StreamCallbacks,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const modelInfo = getModelInfo(config.selectedModel);
+  // Determine subscription tier (used for routing and anonymization)
+  const tier = useSubscriptionStore.getState().tier;
+
+  // ── Premium smart routing ──────────────────────────────────────────
+  // For premium users, pick the model based on conversation topic.
+  // Falls back gracefully if the routed model's API key is unavailable.
+  let effectiveModelId = config.selectedModel;
+
+  if (tier === 'premium') {
+    const lastUserMsg =
+      messages.filter((m) => m.role === 'user').pop()?.content || '';
+    const routedModelId = getPremiumModelId(lastUserMsg);
+    const routedModelInfo = getModelInfo(routedModelId);
+
+    if (routedModelInfo) {
+      const routedApiKey = config.apiKeys[routedModelInfo.apiKeyField];
+      if (routedApiKey) {
+        // Key exists for the routed model, use it
+        effectiveModelId = routedModelId;
+      }
+      // else: key missing for routed model, keep the user's originally selected model
+    }
+  }
+
+  // ── Resolve model info ─────────────────────────────────────────────
+  const modelInfo = getModelInfo(effectiveModelId);
   if (!modelInfo) {
-    callbacks.onError(new Error(`Unknown model: ${config.selectedModel}`));
+    callbacks.onError(new Error(`Unknown model: ${effectiveModelId}`));
     return;
   }
 
@@ -42,13 +74,34 @@ export async function sendChatMessage(
     config.locale,
   );
 
+  // Determine store flag and anonymization based on subscription tier
+  const storeData = shouldAnonymize(tier); // Free/Lite: store=true, VIP/Premium: store=false
+  const requestOptions: RequestOptions = { store: storeData };
+
+  // For tiers where data is stored (Free/Lite), strip PII before sending to API
+  const outboundMessages = storeData ? anonymizeMessages(messages) : messages;
+
   if (modelInfo.provider === 'anthropic') {
     return streamAnthropicChat(
       apiKey,
       modelInfo.apiModelId,
       systemPrompt,
-      messages,
+      outboundMessages,
       callbacks,
+      requestOptions,
+      signal,
+    );
+  }
+
+  if (modelInfo.provider === 'manus') {
+    return streamManusChat(
+      apiKey,
+      modelInfo.apiModelId,
+      systemPrompt,
+      outboundMessages,
+      callbacks,
+      requestOptions,
+      signal,
     );
   }
 
@@ -59,7 +112,59 @@ export async function sendChatMessage(
     apiKey,
     modelInfo.apiModelId,
     systemPrompt,
-    messages,
+    outboundMessages,
     callbacks,
+    requestOptions,
+    signal,
   );
+}
+
+export async function validateApiKey(modelId: string, apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  const modelInfo = getModelInfo(modelId);
+  if (!modelInfo) return { valid: false, error: 'Unknown model' };
+
+  try {
+    if (modelInfo.provider === 'anthropic') {
+      const response = await apiFetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: modelInfo.apiModelId,
+          max_tokens: 1,
+          messages: [{ role: 'user', content: 'Hi' }],
+        }),
+      });
+      if (response.ok || response.status === 200) return { valid: true };
+      if (response.status === 401) return { valid: false, error: 'Invalid API key' };
+      return { valid: false, error: `Error ${response.status}` };
+    }
+
+    if (modelInfo.provider === 'manus') {
+      return validateManusApiKey(apiKey);
+    }
+
+    const baseUrl = PROVIDER_BASE_URLS[modelInfo.provider];
+    const response = await apiFetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelInfo.apiModelId,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    });
+
+    if (response.ok || response.status === 200) return { valid: true };
+    if (response.status === 401) return { valid: false, error: 'Invalid API key' };
+    return { valid: false, error: `Error ${response.status}` };
+  } catch (e) {
+    return { valid: false, error: 'Network error' };
+  }
 }

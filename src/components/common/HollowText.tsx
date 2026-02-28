@@ -18,7 +18,7 @@ export function HollowText({
   ...props
 }: Props) {
   const variantStyle = variantStyles[variant];
-  const useSerif = serif ?? (variant === 'display' || variant === 'heading');
+  const useSerif = serif ?? (variant === 'display');
 
   return (
     <Text
@@ -42,28 +42,32 @@ const variantStyles = StyleSheet.create({
     lineHeight: fs['5xl'] * 1.2,
   },
   heading: {
-    fontSize: fs['3xl'],
-    fontFamily: fonts.serifSemiBold,
+    fontSize: fs['2xl'],
+    fontFamily: fonts.sansMedium,
     color: colors.textPrimary,
-    lineHeight: fs['3xl'] * 1.2,
+    lineHeight: fs['2xl'] * 1.3,
   },
   subheading: {
     fontSize: fs.xl,
+    fontFamily: fonts.sansMedium,
     color: colors.textPrimary,
     lineHeight: fs.xl * 1.4,
   },
   body: {
-    fontSize: fs.md,
+    fontSize: fs.md + 1,
+    fontFamily: fonts.sans,
     color: colors.textPrimary,
-    lineHeight: fs.md * 1.6,
+    lineHeight: (fs.md + 1) * 1.6,
   },
   caption: {
     fontSize: fs.sm,
+    fontFamily: fonts.sans,
     color: colors.textSecondary,
     lineHeight: fs.sm * 1.4,
   },
   label: {
     fontSize: fs.xs,
+    fontFamily: fonts.sans,
     color: colors.textMuted,
     lineHeight: fs.xs * 1.4,
   },

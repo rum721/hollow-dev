@@ -32,6 +32,12 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+.env.local
+
+# Keep .env.development and .env.production (no secrets — secrets are in device secure store)
+# !.env.development
+# !.env.production
 
 # typescript
 *.tsbuildinfo

@@ -1,11 +1,10 @@
-import { Platform } from 'react-native';
-
 export const fonts = {
   serif: 'CormorantGaramond_400Regular',
   serifMedium: 'CormorantGaramond_500Medium',
   serifSemiBold: 'CormorantGaramond_600SemiBold',
   serifBold: 'CormorantGaramond_700Bold',
-  sans: Platform.select({ ios: 'System', android: 'Roboto' }) ?? 'System',
+  sans: 'DMSans_400Regular',
+  sansMedium: 'DMSans_500Medium',
 } as const;
 
 export const fontSize = {

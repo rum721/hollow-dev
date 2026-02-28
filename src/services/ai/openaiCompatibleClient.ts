@@ -1,9 +1,10 @@
-import type { ChatMessage, StreamCallbacks } from './types';
+import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
+import { apiFetch } from './apiFetch';
 
 /**
  * Generic OpenAI-compatible streaming chat client.
  * Works with: OpenAI, Google Gemini, DeepSeek, GLM, Qwen, MiniMax,
- * Moonshot, Baichuan, Yi, StepFun, Doubao, Spark, Manus, etc.
+ * Moonshot, Baichuan, Yi, StepFun, Doubao, Spark, etc.
  */
 export async function streamOpenAICompatibleChat(
   baseUrl: string,
@@ -12,6 +13,8 @@ export async function streamOpenAICompatibleChat(
   systemPrompt: string,
   messages: ChatMessage[],
   callbacks: StreamCallbacks,
+  options?: RequestOptions,
+  signal?: AbortSignal,
 ): Promise<void> {
   try {
     const fullMessages: ChatMessage[] = [
@@ -19,7 +22,7 @@ export async function streamOpenAICompatibleChat(
       ...messages,
     ];
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await apiFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -28,8 +31,10 @@ export async function streamOpenAICompatibleChat(
       body: JSON.stringify({
         model,
         stream: true,
+        store: options?.store ?? true,
         messages: fullMessages.map((m) => ({ role: m.role, content: m.content })),
       }),
+      signal,
     });
 
     if (!response.ok) {

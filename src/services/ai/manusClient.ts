@@ -1,0 +1,191 @@
+import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
+import { apiFetch } from './apiFetch';
+
+const MANUS_BASE = 'https://api.manus.ai';
+const POLL_INTERVAL = 2000; // 2 seconds
+const MAX_POLL_TIME = 120000; // 2 minutes
+
+/**
+ * Extract the assistant's text reply from the Manus output array.
+ *
+ * Manus response format:
+ * {
+ *   "output": [
+ *     { "role": "user",      "content": [{ "type": "output_text", "text": "..." }] },
+ *     { "role": "assistant",  "content": [{ "type": "output_text", "text": "..." }] }
+ *   ]
+ * }
+ */
+function extractAssistantText(output: unknown): string {
+  if (!Array.isArray(output)) return '';
+
+  // Walk the output array in reverse to find the last assistant message
+  for (let i = output.length - 1; i >= 0; i--) {
+    const entry = output[i];
+    if (entry?.role === 'assistant' && Array.isArray(entry.content)) {
+      // Collect all output_text blocks
+      const texts = entry.content
+        .filter((c: { type?: string }) => c.type === 'output_text')
+        .map((c: { text?: string }) => c.text ?? '')
+        .filter(Boolean);
+      if (texts.length > 0) return texts.join('\n');
+    }
+  }
+
+  // Fallback: try any entry with content text
+  for (const entry of output) {
+    if (Array.isArray(entry?.content)) {
+      for (const block of entry.content) {
+        if (block?.type === 'output_text' && block.text && entry.role !== 'user') {
+          return block.text;
+        }
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Manus uses a task-based API, not OpenAI-compatible chat/completions.
+ * Flow: create task → poll for completion → return result.
+ */
+export async function streamManusChat(
+  apiKey: string,
+  agentProfile: string,
+  _systemPrompt: string,
+  messages: ChatMessage[],
+  callbacks: StreamCallbacks,
+  _options?: RequestOptions,
+  signal?: AbortSignal,
+): Promise<void> {
+  // Manus expects a single prompt string.
+  // Only send the last user message — Manus handles context internally.
+  // Don't dump the system prompt into the task, it confuses the agent.
+  const userMessages = messages.filter((m) => m.role === 'user');
+  const lastUserMessage = userMessages[userMessages.length - 1]?.content ?? '';
+
+  if (!lastUserMessage) {
+    callbacks.onError(new Error('No message to send'));
+    return;
+  }
+
+  try {
+    // Step 1: Create task
+    const createRes = await apiFetch(`${MANUS_BASE}/v1/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'API_KEY': apiKey,
+      },
+      body: JSON.stringify({
+        prompt: lastUserMessage,
+        agentProfile,
+        taskMode: 'chat',
+      }),
+      signal,
+    });
+
+    if (!createRes.ok) {
+      const errBody = await createRes.text().catch(() => '');
+      if (createRes.status === 401 || createRes.status === 403) {
+        callbacks.onError(new Error('Invalid Manus API key'));
+      } else {
+        callbacks.onError(new Error(`Manus API error ${createRes.status}: ${errBody}`));
+      }
+      return;
+    }
+
+    const taskData = await createRes.json();
+    const taskId = taskData.task_id ?? taskData.id;
+    if (!taskId) {
+      callbacks.onError(new Error('Manus: No task_id returned'));
+      return;
+    }
+
+    // Step 2: Poll for task completion
+    // Show a thinking indicator (will be cleared before emitting actual text)
+    callbacks.onToken('思考中');
+    const startTime = Date.now();
+    let result = '';
+
+    while (Date.now() - startTime < MAX_POLL_TIME) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+
+      const statusRes = await apiFetch(`${MANUS_BASE}/v1/tasks/${taskId}`, {
+        method: 'GET',
+        headers: { 'API_KEY': apiKey },
+        signal,
+      });
+
+      if (!statusRes.ok) {
+        callbacks.onError(new Error(`Manus poll error: ${statusRes.status}`));
+        return;
+      }
+
+      const statusData = await statusRes.json();
+      const status = statusData.status;
+
+      if (status === 'completed') {
+        result = extractAssistantText(statusData.output);
+
+        // Fallback: try direct string fields
+        if (!result && typeof statusData.output === 'string') {
+          result = statusData.output;
+        }
+        if (!result && typeof statusData.result === 'string') {
+          result = statusData.result;
+        }
+
+        break;
+      } else if (status === 'failed') {
+        callbacks.onError(new Error(statusData.error ?? 'Manus task failed'));
+        return;
+      }
+      // status === 'pending' or 'running' → keep polling (no extra tokens)
+    }
+
+    if (!result) {
+      callbacks.onError(new Error('Manus: No response received'));
+      return;
+    }
+
+    // Clear the "thinking" indicator by resetting streamingText,
+    // then emit the actual result.
+    // We use a special approach: emit the result as a complete replacement.
+    // The onComplete callback receives the clean text.
+    callbacks.onComplete(result);
+  } catch (e) {
+    callbacks.onError(e instanceof Error ? e : new Error(String(e)));
+  }
+}
+
+/**
+ * Validate a Manus API key by attempting to create a minimal task.
+ */
+export async function validateManusApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(`${MANUS_BASE}/v1/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'API_KEY': apiKey,
+      },
+      body: JSON.stringify({
+        prompt: 'Hi',
+        agentProfile: 'speed',
+        taskMode: 'chat',
+      }),
+    });
+
+    if (res.ok || res.status === 200 || res.status === 201) {
+      return { valid: true };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, error: 'Invalid API key' };
+    }
+    return { valid: false, error: `Error ${res.status}` };
+  } catch {
+    return { valid: false, error: 'Network error' };
+  }
+}

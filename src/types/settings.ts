@@ -30,6 +30,8 @@ export interface ModelInfo {
   apiKeyField: string;
 }
 
+export type AutoDestructDays = 7 | 30 | 90 | null;
+
 export interface ApiKeys {
   [key: string]: string;
 }

@@ -6,6 +6,17 @@
   "welcome": {
     "begin": "开始"
   },
+  "privacy": {
+    "title": "你的隐私至关重要",
+    "subtitle": "留白以隐私为核心构建。你的对话只属于你。",
+    "encryption": "端到端加密",
+    "encryptionDesc": "所有对话均采用 AES-256 加密。只有你能阅读它们。",
+    "localStorage": "本地数据存储",
+    "localStorageDesc": "你的记忆和设置存储在设备上，而非云端。",
+    "noTracking": "无行为追踪",
+    "noTrackingDesc": "我们不追踪你的行为，不出售数据，也不与第三方共享。",
+    "agree": "我了解并同意隐私政策"
+  },
   "onboarding": {
     "nickname": {
       "title": "我该怎么称呼你？",
@@ -39,21 +50,30 @@
     "deleteSession": "删除对话",
     "deleteConfirm": "此对话将被永久删除，无法恢复。",
     "cancel": "取消",
-    "delete": "删除"
+    "delete": "删除",
+    "archive": "归档",
+    "destroySession": "销毁对话",
+    "destroyConfirm": "此对话将被永久销毁，无法恢复。",
+    "destroy": "销毁",
+    "searchPlaceholder": "搜索对话...",
+    "noResults": "未找到相关对话"
   },
   "voice": {
     "listening": "聆听中...",
+    "transcribing": "识别中...",
     "thinking": "思考中...",
     "speaking": "回复中...",
     "sessionTime": "对话时长",
     "tapToSpeak": "轻触说话",
-    "holdToSpeak": "长按说话"
+    "holdToSpeak": "长按说话",
+    "error": "错误：{{message}}"
   },
   "memory": {
     "title": "你的记忆",
     "people": "人物",
     "events": "事件",
     "preferences": "偏好",
+    "emotions": "情绪",
     "addMemory": "添加记忆",
     "editMemory": "编辑记忆",
     "category": "分类",
@@ -78,6 +98,8 @@
     "localStorage": "本地存储管理",
     "biometricLock": "生物识别锁",
     "autoDestruct": "自动销毁规则",
+    "autoDestructNever": "永不",
+    "autoDestructDays": "{{days}} 天",
     "eraseAll": "清除所有数据",
     "eraseConfirm": "所有对话、记忆和设置将被永久删除，无法恢复。",
     "aiSettings": "AI 设置",
@@ -86,12 +108,41 @@
     "concise": "简洁",
     "elaborate": "详细",
     "subscription": "订阅管理",
-    "currentPlan": "当前计划",
+    "currentPlan": "当前计划（点击切换）",
+    "dailyUsage": "今日用量",
+    "remaining": "剩余次数",
     "premiumMonthly": "高级月度会员",
     "apiKey": "API 密钥",
     "apiKeyPlaceholder": "输入你的 API 密钥",
+    "validate": "验证",
+    "keyValid": "API 密钥验证成功",
+    "keyInvalid": "无效的 API 密钥",
     "about": "关于",
+    "privacyPolicy": "隐私政策",
+    "termsOfService": "服务条款",
     "version": "版本"
+  },
+  "upgrade": {
+    "freeLimit": "今天的免费消息额度已用完（每天5条）。",
+    "liteLimit": "今天的轻享版消息额度已用完（每天15条）。",
+    "upgradeToTier": "升级到 {{tier}}",
+    "dismiss": "关闭"
+  },
+  "subscription": {
+    "title": "订阅计划",
+    "currentPlanBadge": "当前计划",
+    "select": "选择",
+    "current": "当前",
+    "messagesPerDay": "每天 {{count}} 条消息",
+    "unlimited": "无限消息",
+    "features": {
+      "basicModel": "基础 AI 模型",
+      "bestModels": "顶级 AI 模型",
+      "dataTraining": "数据用于模型训练",
+      "dataYours": "数据完全归你所有",
+      "byok": "自带 API 密钥",
+      "priority": "优先客服支持"
+    }
   },
   "common": {
     "confirm": "确认",

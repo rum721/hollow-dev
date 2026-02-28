@@ -1,4 +1,5 @@
-import type { ChatMessage, StreamCallbacks } from './types';
+import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
+import { apiFetch } from './apiFetch';
 
 export async function streamAnthropicChat(
   apiKey: string,
@@ -6,9 +7,11 @@ export async function streamAnthropicChat(
   systemPrompt: string,
   messages: ChatMessage[],
   callbacks: StreamCallbacks,
+  options?: RequestOptions,
+  signal?: AbortSignal,
 ): Promise<void> {
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await apiFetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -21,7 +24,11 @@ export async function streamAnthropicChat(
         system: systemPrompt,
         stream: true,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        ...(options?.store !== false && {
+          metadata: { user_id: 'hollow-user' },
+        }),
       }),
+      signal,
     });
 
     if (!response.ok) {

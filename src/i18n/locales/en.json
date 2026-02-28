@@ -6,6 +6,17 @@
   "welcome": {
     "begin": "Begin"
   },
+  "privacy": {
+    "title": "Your Privacy Matters",
+    "subtitle": "Hollow is built with privacy at its core. Your conversations belong to you.",
+    "encryption": "End-to-End Encryption",
+    "encryptionDesc": "All conversations are encrypted using AES-256. Only you can read them.",
+    "localStorage": "Local Data Storage",
+    "localStorageDesc": "Your memories and settings are stored on your device, not in the cloud.",
+    "noTracking": "No Tracking",
+    "noTrackingDesc": "We don't track your behavior, sell your data, or share it with third parties.",
+    "agree": "I understand and agree to the privacy policy"
+  },
   "onboarding": {
     "nickname": {
       "title": "What should I call you?",
@@ -39,21 +50,30 @@
     "deleteSession": "Delete Session",
     "deleteConfirm": "This conversation will be permanently deleted. This cannot be undone.",
     "cancel": "Cancel",
-    "delete": "Delete"
+    "delete": "Delete",
+    "archive": "Archive",
+    "destroySession": "Destroy Conversation",
+    "destroyConfirm": "This conversation will be permanently destroyed. This action cannot be undone.",
+    "destroy": "Destroy",
+    "searchPlaceholder": "Search conversations...",
+    "noResults": "No results found"
   },
   "voice": {
     "listening": "Listening...",
+    "transcribing": "Transcribing...",
     "thinking": "Thinking...",
     "speaking": "Speaking...",
     "sessionTime": "Session Time",
     "tapToSpeak": "Tap to speak",
-    "holdToSpeak": "Hold to speak"
+    "holdToSpeak": "Hold to speak",
+    "error": "Error: {{message}}"
   },
   "memory": {
     "title": "Your Memory",
     "people": "People",
     "events": "Events",
     "preferences": "Preferences",
+    "emotions": "Emotions",
     "addMemory": "Add Memory",
     "editMemory": "Edit Memory",
     "category": "Category",
@@ -78,6 +98,8 @@
     "localStorage": "Local storage management",
     "biometricLock": "Biometric lock",
     "autoDestruct": "Auto-destruct rules",
+    "autoDestructNever": "Never",
+    "autoDestructDays": "{{days}} days",
     "eraseAll": "Erase All Data",
     "eraseConfirm": "All conversations, memories, and settings will be permanently deleted. This cannot be undone.",
     "aiSettings": "AI Settings",
@@ -86,12 +108,41 @@
     "concise": "Concise",
     "elaborate": "Elaborate",
     "subscription": "Subscription",
-    "currentPlan": "Current plan",
+    "currentPlan": "Current plan (tap to change)",
+    "dailyUsage": "Today's Usage",
+    "remaining": "Remaining",
     "premiumMonthly": "Premium Monthly",
     "apiKey": "API Key",
     "apiKeyPlaceholder": "Enter your API key",
+    "validate": "Validate",
+    "keyValid": "API Key validated successfully",
+    "keyInvalid": "Invalid API key",
     "about": "About",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
     "version": "Version"
+  },
+  "upgrade": {
+    "freeLimit": "You've reached today's free message limit (5/day).",
+    "liteLimit": "You've reached today's Lite message limit (15/day).",
+    "upgradeToTier": "Upgrade to {{tier}}",
+    "dismiss": "Dismiss"
+  },
+  "subscription": {
+    "title": "Subscription Plans",
+    "currentPlanBadge": "Current Plan",
+    "select": "Select",
+    "current": "Current",
+    "messagesPerDay": "{{count}} messages/day",
+    "unlimited": "Unlimited messages",
+    "features": {
+      "basicModel": "Basic AI model",
+      "bestModels": "Best AI models",
+      "dataTraining": "Data used for training",
+      "dataYours": "Your data stays yours",
+      "byok": "Bring your own API key",
+      "priority": "Priority support"
+    }
   },
   "common": {
     "confirm": "Confirm",

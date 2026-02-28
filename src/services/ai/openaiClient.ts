@@ -1,4 +1,5 @@
-import type { ChatMessage, StreamCallbacks } from './types';
+import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
+import { apiFetch } from './apiFetch';
 
 export async function streamOpenAIChat(
   apiKey: string,
@@ -6,6 +7,7 @@ export async function streamOpenAIChat(
   systemPrompt: string,
   messages: ChatMessage[],
   callbacks: StreamCallbacks,
+  options?: RequestOptions,
 ): Promise<void> {
   try {
     const fullMessages: ChatMessage[] = [
@@ -13,7 +15,7 @@ export async function streamOpenAIChat(
       ...messages,
     ];
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await apiFetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -22,6 +24,7 @@ export async function streamOpenAIChat(
       body: JSON.stringify({
         model: model === 'gpt-5.2' ? 'gpt-4o' : model,
         stream: true,
+        store: options?.store ?? true,
         messages: fullMessages.map((m) => ({ role: m.role, content: m.content })),
       }),
     });

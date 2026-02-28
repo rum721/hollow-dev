@@ -6,10 +6,13 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "proxy": "node scripts/cors-proxy.js",
+    "test": "jest"
   },
   "dependencies": {
     "@expo-google-fonts/cormorant-garamond": "^0.4.1",
+    "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo/metro-runtime": "~55.0.6",
     "@expo/vector-icons": "^15.1.1",
     "@react-navigation/bottom-tabs": "^7.15.2",
@@ -25,8 +28,8 @@
     "expo-local-authentication": "^55.0.8",
     "expo-localization": "^55.0.8",
     "expo-router": "~55.0.2",
-    "expo-secure-store": "^55.0.8",
-    "expo-sqlite": "^55.0.10",
+    "expo-secure-store": "~55.0.8",
+    "expo-sqlite": "~55.0.10",
     "expo-status-bar": "~55.0.4",
     "react": "19.2.0",
     "react-dom": "19.2.0",
@@ -42,8 +45,10 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.2.2",
     "@types/uuid": "^10.0.0",
+    "jest-expo": "~55.0.0",
     "typescript": "~5.9.2"
   },
   "private": true

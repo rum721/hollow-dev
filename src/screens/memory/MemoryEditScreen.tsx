@@ -38,6 +38,7 @@ export function MemoryEditScreen() {
   const categoryLabels: Record<MemoryCategory, string> = {
     people: t('memory.people'),
     events: t('memory.events'),
+    emotions: t('memory.emotions'),
     preferences: t('memory.preferences'),
   };
 

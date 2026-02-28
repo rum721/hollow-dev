@@ -1,4 +1,4 @@
-export type MemoryCategory = 'people' | 'events' | 'preferences';
+export type MemoryCategory = 'people' | 'events' | 'emotions' | 'preferences';
 
 export interface MemoryEntry {
   id: string;
