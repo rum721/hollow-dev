@@ -190,26 +190,17 @@ You may naturally employ these approaches, but never mention the terminology:
 
 const SAFETY_ZH = `## 安全边界
 
-如果用户表达了自杀或自伤的意图：
-1. 不要慌张，不要说教。先温和地确认："你现在安全吗？"
-2. 明确但不生硬地建议寻求专业帮助
-3. 提供危机热线：
-   - 中国：400-161-9995（24小时心理危机热线）
-   - 中国：010-82951332（北京心理危机研究与干预中心）
-   - 新加坡：1800-221-4444（SOS 24小时热线）
-4. 不替代专业医疗服务，但也不要因为"我不是专业人士"就推开用户`;
+如果用户明确表达了自杀或自伤的意图：
+- 温和地回应："这些感受很重要，值得被专业的人听到。如果你愿意，可以联系当地的心理危机热线，他们24小时都在。"
+- 说一次就够了，不要反复追问，不要说教
+- 不替代专业医疗服务`;
 
 const SAFETY_EN = `## Safety Boundaries
 
-If a user expresses suicidal or self-harm intent:
-1. Don't panic, don't lecture. Gently confirm first: "Are you safe right now?"
-2. Clearly but softly suggest professional help
-3. Provide crisis hotlines:
-   - US: 988 (Suicide & Crisis Lifeline)
-   - UK: 116 123 (Samaritans)
-   - Singapore: 1800-221-4444 (SOS 24-hour hotline)
-   - International: findahelpline.com
-4. Never replace professional medical services, but also don't push the user away by saying "I'm not qualified"`;
+If a user clearly expresses suicidal or self-harm intent:
+- Respond gently: "These feelings matter and deserve to be heard by someone trained to help. If you're open to it, a local crisis hotline is available 24/7."
+- Say it once. Don't repeat, don't lecture.
+- Never replace professional medical services`;
 
 // ── Public API ──────────────────────────────────────────────────────
 
@@ -219,14 +210,15 @@ export function buildSystemPrompt(
   responseStyleValue: number,
   memoryContext: string,
   locale: string,
+  knowledgeContext?: string,
 ): string {
   const isZh = locale === 'zh';
   const style = STYLE_CONFIGS[conversationStyle];
   const lengthInstruction = getResponseLengthInstruction(responseStyleValue, isZh);
 
   return isZh
-    ? buildChinesePrompt(nickname, style.zh, lengthInstruction, memoryContext)
-    : buildEnglishPrompt(nickname, style.en, lengthInstruction, memoryContext);
+    ? buildChinesePrompt(nickname, style.zh, lengthInstruction, memoryContext, knowledgeContext)
+    : buildEnglishPrompt(nickname, style.en, lengthInstruction, memoryContext, knowledgeContext);
 }
 
 // ── Chinese prompt builder ──────────────────────────────────────────
@@ -236,6 +228,7 @@ function buildChinesePrompt(
   style: StyleConfig['zh'],
   lengthInstruction: string,
   memoryContext: string,
+  knowledgeContext?: string,
 ): string {
   let prompt = `你是"留白"（Hollow）。
 
@@ -270,7 +263,7 @@ ${ABSOLUTE_RULES_ZH}
 ${lengthInstruction}
 
 ${PSYCHOLOGY_ZH}
-
+${knowledgeContext ? `\n${knowledgeContext}` : ''}
 ${SAFETY_ZH}`;
 
   if (memoryContext) {
@@ -293,6 +286,7 @@ function buildEnglishPrompt(
   style: StyleConfig['en'],
   lengthInstruction: string,
   memoryContext: string,
+  knowledgeContext?: string,
 ): string {
   let prompt = `You are Hollow.
 
@@ -327,7 +321,7 @@ ${ABSOLUTE_RULES_EN}
 ${lengthInstruction}
 
 ${PSYCHOLOGY_EN}
-
+${knowledgeContext ? `\n${knowledgeContext}` : ''}
 ${SAFETY_EN}`;
 
   if (memoryContext) {

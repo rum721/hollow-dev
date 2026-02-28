@@ -19,6 +19,9 @@ interface RouterConfig {
   memoryContext: string;
   locale: string;
   store?: boolean;
+  knowledgeContext?: string;
+  manusTaskId?: string;
+  onManusTaskId?: (taskId: string) => void;
 }
 
 export async function sendChatMessage(
@@ -72,6 +75,7 @@ export async function sendChatMessage(
     config.responseStyleValue,
     config.memoryContext,
     config.locale,
+    config.knowledgeContext,
   );
 
   // Determine store flag and anonymization based on subscription tier
@@ -94,15 +98,19 @@ export async function sendChatMessage(
   }
 
   if (modelInfo.provider === 'manus') {
-    return streamManusChat(
+    const newTaskId = await streamManusChat(
       apiKey,
       modelInfo.apiModelId,
       systemPrompt,
       outboundMessages,
       callbacks,
-      requestOptions,
+      { ...requestOptions, manusTaskId: config.manusTaskId },
       signal,
     );
+    if (newTaskId && config.onManusTaskId) {
+      config.onManusTaskId(newTaskId);
+    }
+    return;
   }
 
   // All other providers use OpenAI-compatible API

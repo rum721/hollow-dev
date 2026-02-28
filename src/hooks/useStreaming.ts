@@ -5,6 +5,7 @@ import { useMemoryStore } from '../store/useMemoryStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { sendChatMessage } from '../services/ai/aiRouter';
 import { extractMemories } from '../services/ai/memoryExtractor';
+import { getRelevantKnowledge } from '../services/knowledge/knowledgeRetriever';
 import { getEffectiveLocale } from '../i18n';
 import type { ChatMessage } from '../services/ai/types';
 
@@ -41,6 +42,12 @@ export function useStreaming() {
       .slice(-3)
       .map((m) => m.content);
 
+    const effectiveLocale = getEffectiveLocale(settings.language);
+    const knowledgeContext = getRelevantKnowledge(recentUserMessages, effectiveLocale);
+
+    // Manus multi-turn: retrieve existing taskId for this session
+    const manusTaskId = useChatStore.getState().getManusTaskId(sessionId);
+
     abortRef.current = new AbortController();
 
     try {
@@ -53,8 +60,13 @@ export function useStreaming() {
           conversationStyle: settings.conversationStyle,
           responseStyleValue: settings.responseStyleValue,
           memoryContext: getRelevantContext(recentUserMessages),
-          locale: getEffectiveLocale(settings.language),
+          locale: effectiveLocale,
           store: true,
+          knowledgeContext,
+          manusTaskId,
+          onManusTaskId: (taskId: string) => {
+            useChatStore.getState().setManusTaskId(sessionId, taskId);
+          },
         },
         {
           onToken: (token: string) => appendStreamToken(token),

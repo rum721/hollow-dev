@@ -79,6 +79,14 @@ export async function deleteSessionsOlderThan(days: number): Promise<number> {
   return rows.length;
 }
 
+export async function updateManusTaskId(sessionId: string, taskId: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE sessions SET manus_task_id = ? WHERE id = ?',
+    [taskId, sessionId],
+  );
+}
+
 // ─── Messages ────────────────────────────────────────────
 
 export async function getMessagesForSession(sessionId: string): Promise<Message[]> {
@@ -117,6 +125,7 @@ function toSession(row: any): Session {
     lastMessage: row.last_message ? decryptSync(row.last_message) : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    manusTaskId: row.manus_task_id ?? undefined,
   };
 }
 

@@ -9,6 +9,7 @@ export interface Session {
   status: SessionStatus;
   lastMessage?: string;
   messageCount?: number;
+  manusTaskId?: string;
 }
 
 export interface Message {

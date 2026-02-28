@@ -23,6 +23,8 @@ interface ChatState {
   archiveSession: (id: string) => void;
   destroySession: (id: string) => void;
   restoreSession: (id: string) => void;
+  getManusTaskId: (sessionId: string) => string | undefined;
+  setManusTaskId: (sessionId: string, taskId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -175,5 +177,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     conversationRepo.updateSessionStatus(id, 'active').then(() => {
       get().loadSessions();
     }).catch(() => {});
+  },
+
+  getManusTaskId: (sessionId) => {
+    return get().sessions.find((s) => s.id === sessionId)?.manusTaskId;
+  },
+
+  setManusTaskId: (sessionId, taskId) => {
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, manusTaskId: taskId } : s,
+      ),
+    }));
+    // Persist to database
+    conversationRepo.updateManusTaskId(sessionId, taskId).catch(() => {});
   },
 }));

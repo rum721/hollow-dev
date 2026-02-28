@@ -67,6 +67,13 @@ async function initSchema(database: any): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
     CREATE INDEX IF NOT EXISTS idx_memory_category ON memory_entries(category);
   `);
+
+  // Migration: add manus_task_id column to sessions (for Manus multi-turn)
+  try {
+    await database.execAsync(`ALTER TABLE sessions ADD COLUMN manus_task_id TEXT`);
+  } catch {
+    // Column already exists — this is expected after first migration
+  }
 }
 
 export async function closeDatabase(): Promise<void> {
