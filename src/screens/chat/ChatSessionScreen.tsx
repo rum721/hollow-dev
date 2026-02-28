@@ -143,7 +143,7 @@ export function ChatSessionScreen() {
           </HollowText>
         </View>
       )}
-      <View style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, 16) + 16 }, isDesktop && styles.inputAreaDesktop]}>
+      <View style={[styles.inputArea, { paddingBottom: Platform.OS === 'ios' ? 85 : 65 }, isDesktop && styles.inputAreaDesktop]}>
         <View style={isDesktop ? { maxWidth: chatMaxWidth, width: '100%' } : { flex: 1 }}>
           <ChatInput
             onSend={handleSend}

@@ -11,4 +11,5 @@ export interface StreamCallbacks {
 
 export interface RequestOptions {
   store?: boolean;
+  maxTokens?: number;
 }

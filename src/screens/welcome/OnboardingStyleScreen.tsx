@@ -49,23 +49,32 @@ export function OnboardingStyleScreen() {
   const setOnboarded = useAuthStore((s) => s.setOnboarded);
   const [selected, setSelected] = useState<ConversationStyle>('empathetic');
 
+  const [starting, setStarting] = useState(false);
+
   const handleStart = async () => {
-    setConversationStyle(selected);
+    if (starting) return; // prevent double-tap
+    setStarting(true);
+    try {
+      setConversationStyle(selected);
 
-    // Determine effective locale for the greeting
-    const langSetting = useSettingsStore.getState().language;
-    const effectiveLocale = getEffectiveLocale(langSetting);
-    const nickname = useSettingsStore.getState().nickname;
+      // Determine effective locale for the greeting
+      const langSetting = useSettingsStore.getState().language;
+      const effectiveLocale = getEffectiveLocale(langSetting);
+      const nickname = useSettingsStore.getState().nickname;
 
-    // Build the personalized greeting
-    const greeting = buildGreeting(selected, nickname, effectiveLocale);
+      // Build the personalized greeting
+      const greeting = buildGreeting(selected, nickname, effectiveLocale);
 
-    // Create the first session and add the AI greeting message
-    const sessionId = await useChatStore.getState().createSession();
-    useChatStore.getState().finalizeAssistantMessage(sessionId, greeting);
+      // Create the first session and add the AI greeting message
+      const sessionId = await useChatStore.getState().createSession();
+      useChatStore.getState().finalizeAssistantMessage(sessionId, greeting);
 
-    // Complete onboarding — triggers navigation to MainTabs
-    setOnboarded(true);
+      // Complete onboarding — triggers navigation to MainTabs
+      setOnboarded(true);
+    } catch (e: any) {
+      console.error('Onboarding start failed:', e);
+      setStarting(false);
+    }
   };
 
   return (

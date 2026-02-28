@@ -3,6 +3,9 @@
     "name": "Hollow",
     "tagline": "为你未曾说出口的想法，留一个安全的角落。"
   },
+  "launch": {
+    "tapToEnter": "轻触屏幕，进入留白"
+  },
   "welcome": {
     "begin": "开始"
   },

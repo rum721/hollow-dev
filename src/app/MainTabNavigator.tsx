@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Platform, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import { Feather } from '@expo/vector-icons';
 import { ChatStackNavigator } from './ChatStackNavigator';
@@ -48,11 +49,17 @@ export function MainTabNavigator() {
       <Tab.Screen
         name="ChatStack"
         component={ChatStackNavigator}
-        options={{
-          tabBarLabel: t('tabs.chat'),
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="message-circle" size={size} color={color} />
-          ),
+        options={({ route }) => {
+          const focusedRoute = getFocusedRouteNameFromRoute(route) ?? 'ChatList';
+          // Only hide tab bar for VoiceMode (fullscreen); keep it for ChatSession
+          const hideTabBar = focusedRoute === 'VoiceMode';
+          return {
+            tabBarLabel: t('tabs.chat'),
+            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+              <Feather name="message-circle" size={size} color={color} />
+            ),
+            ...(hideTabBar && { tabBarStyle: { display: 'none' as const } }),
+          };
         }}
       />
       <Tab.Screen
@@ -68,11 +75,16 @@ export function MainTabNavigator() {
       <Tab.Screen
         name="SettingsStack"
         component={SettingsStackNavigator}
-        options={{
-          tabBarLabel: t('tabs.settings'),
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="settings" size={size} color={color} />
-          ),
+        options={({ route }) => {
+          const focusedRoute = getFocusedRouteNameFromRoute(route) ?? 'Settings';
+          const hideTabBar = focusedRoute !== 'Settings';
+          return {
+            tabBarLabel: t('tabs.settings'),
+            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+              <Feather name="settings" size={size} color={color} />
+            ),
+            ...(hideTabBar && { tabBarStyle: { display: 'none' as const } }),
+          };
         }}
       />
     </Tab.Navigator>

@@ -2,7 +2,7 @@ import { streamAnthropicChat } from './anthropicClient';
 import { streamOpenAICompatibleChat } from './openaiCompatibleClient';
 import { streamManusChat, validateManusApiKey } from './manusClient';
 import { getModelInfo, PROVIDER_BASE_URLS } from './models';
-import { buildSystemPrompt } from './promptBuilder';
+import { buildSystemPrompt, getMaxTokensForStyle } from './promptBuilder';
 import { anonymizeMessages, shouldAnonymize } from './dataAnonymizer';
 import { getPremiumModelId } from './premiumRouter';
 import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
@@ -78,9 +78,12 @@ export async function sendChatMessage(
     config.knowledgeContext,
   );
 
+  // Compute max_tokens from the response style slider
+  const maxTokens = getMaxTokensForStyle(config.responseStyleValue);
+
   // Determine store flag and anonymization based on subscription tier
   const storeData = shouldAnonymize(tier); // Free/Lite: store=true, VIP/Premium: store=false
-  const requestOptions: RequestOptions = { store: storeData };
+  const requestOptions: RequestOptions = { store: storeData, maxTokens };
 
   // For tiers where data is stored (Free/Lite), strip PII before sending to API
   const outboundMessages = storeData ? anonymizeMessages(messages) : messages;

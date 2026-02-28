@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "hollow-app",
+    "name": "Hollow",
     "slug": "hollow-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.liubai.hollow",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -26,9 +30,18 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "locales": {
+      "zh-Hans": "./locales/zh-Hans.json",
+      "zh-Hant": "./locales/zh-Hant.json"
+    },
     "plugins": [
       "expo-sqlite",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cfe03c88-62bb-4a13-9a2d-b88d93050e72"
+      }
+    }
   }
 }

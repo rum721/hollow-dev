@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'expo-crypto';
 import type { Session, Message, SessionStatus } from '../types/chat';
 import * as conversationRepo from '../services/storage/conversationRepo';
 
@@ -55,7 +55,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   createSession: async () => {
     const count = await conversationRepo.getSessionCount().catch(() => get().sessions.length);
-    const id = uuid();
+    const id = randomUUID();
     const session: Session = {
       id,
       title: `Session ${count + 1}`,
@@ -78,7 +78,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   addUserMessage: (sessionId, content) => {
     const msg: Message = {
-      id: uuid(),
+      id: randomUUID(),
       sessionId,
       role: 'user',
       content,
@@ -104,7 +104,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const content = overrideText || get().streamingText;
     if (!content) return;
     const msg: Message = {
-      id: uuid(),
+      id: randomUUID(),
       sessionId,
       role: 'assistant',
       content,

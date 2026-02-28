@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/useAuthStore';
+import { LaunchScreen } from '../screens/welcome/LaunchScreen';
 import { WelcomeScreen } from '../screens/welcome/WelcomeScreen';
 import { OnboardingPrivacyScreen } from '../screens/welcome/OnboardingPrivacyScreen';
 import { OnboardingNicknameScreen } from '../screens/welcome/OnboardingNicknameScreen';
@@ -39,7 +40,10 @@ export function RootNavigator() {
           <Stack.Screen name="OnboardingStyle" component={OnboardingStyleScreen} />
         </>
       ) : (
-        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+        <>
+          <Stack.Screen name="Launch" component={LaunchScreen} />
+          <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+        </>
       )}
     </Stack.Navigator>
   );

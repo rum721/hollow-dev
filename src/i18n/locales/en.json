@@ -3,6 +3,9 @@
     "name": "Hollow",
     "tagline": "A safe space for your unspoken thoughts."
   },
+  "launch": {
+    "tapToEnter": "Tap anywhere to enter"
+  },
   "welcome": {
     "begin": "Begin"
   },

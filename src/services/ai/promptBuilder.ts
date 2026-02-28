@@ -208,6 +208,16 @@ If a user clearly expresses suicidal or self-harm intent:
 - Say it once. Don't repeat, don't lecture.
 - Never replace professional medical services`;
 
+// ── Max tokens mapping (slider → actual API max_tokens) ─────────────
+
+export function getMaxTokensForStyle(responseStyleValue: number): number {
+  if (responseStyleValue < 20) return 256;
+  if (responseStyleValue < 40) return 512;
+  if (responseStyleValue < 60) return 1024;
+  if (responseStyleValue < 80) return 2048;
+  return 4096;
+}
+
 // ── Public API ──────────────────────────────────────────────────────
 
 export function buildSystemPrompt(

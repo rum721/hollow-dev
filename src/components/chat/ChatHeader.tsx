@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../theme';
 import { HollowText } from '../common/HollowText';
@@ -11,8 +12,10 @@ interface Props {
 }
 
 export function ChatHeader({ title, onBack, onVoiceMode }: Props) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + spacing.xs }]}>
       <TouchableOpacity onPress={onBack} style={styles.iconBtn} hitSlop={8}>
         <Feather name="arrow-left" size={22} color={colors.textPrimary} />
       </TouchableOpacity>

@@ -22,15 +22,60 @@ export async function streamOpenAICompatibleChat(
       ...messages,
     ];
 
-    const response = await apiFetch(`${baseUrl}/chat/completions`, {
+    const endpoint = `${baseUrl}/chat/completions`;
+    const reqHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    };
+
+    const reader = typeof ReadableStream !== 'undefined'
+      ? await tryStreamingRequest() : null;
+
+    // ── Streaming path (web) ──
+    if (reader) {
+      const decoder = new TextDecoder();
+      let accumulated = '';
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') {
+            callbacks.onComplete(accumulated);
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            const token = parsed.choices?.[0]?.delta?.content;
+            if (token) {
+              accumulated += token;
+              callbacks.onToken(token);
+            }
+          } catch {}
+        }
+      }
+
+      callbacks.onComplete(accumulated);
+      return;
+    }
+
+    // ── Non-streaming fallback (React Native) ──
+    const response = await apiFetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: reqHeaders,
       body: JSON.stringify({
         model,
-        stream: true,
+        max_tokens: options?.maxTokens ?? 4096,
+        stream: false,
         store: options?.store ?? true,
         messages: fullMessages.map((m) => ({ role: m.role, content: m.content })),
       }),
@@ -42,41 +87,38 @@ export async function streamOpenAICompatibleChat(
       throw new Error(`API error ${response.status}: ${err}`);
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content ?? '';
+    if (content) callbacks.onToken(content);
+    callbacks.onComplete(content);
 
-    const decoder = new TextDecoder();
-    let accumulated = '';
-    let buffer = '';
+    // ── Helper: attempt streaming fetch ──
+    async function tryStreamingRequest(): Promise<ReadableStreamDefaultReader<Uint8Array> | null> {
+      try {
+        const res = await apiFetch(endpoint, {
+          method: 'POST',
+          headers: reqHeaders,
+          body: JSON.stringify({
+            model,
+            max_tokens: options?.maxTokens ?? 4096,
+            stream: true,
+            store: options?.store ?? true,
+            messages: fullMessages.map((m) => ({ role: m.role, content: m.content })),
+          }),
+          signal,
+        });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') {
-          callbacks.onComplete(accumulated);
-          return;
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(`API error ${res.status}: ${err}`);
         }
 
-        try {
-          const parsed = JSON.parse(data);
-          const token = parsed.choices?.[0]?.delta?.content;
-          if (token) {
-            accumulated += token;
-            callbacks.onToken(token);
-          }
-        } catch {}
+        const r = res.body?.getReader();
+        return r ?? null;
+      } catch {
+        return null;
       }
     }
-
-    callbacks.onComplete(accumulated);
   } catch (error) {
     callbacks.onError(error instanceof Error ? error : new Error(String(error)));
   }

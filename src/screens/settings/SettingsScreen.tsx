@@ -52,21 +52,27 @@ export function SettingsScreen() {
   const [validationResult, setValidationResult] = useState<{ valid: boolean; error?: string } | null>(null);
 
   const sliderTrackRef = useRef<View>(null);
-  const [trackLayout, setTrackLayout] = useState({ x: 0, width: 0 });
-
-  const handleSliderTouch = (pageX: number) => {
-    if (trackLayout.width === 0) return;
-    const ratio = Math.max(0, Math.min(1, (pageX - trackLayout.x) / trackLayout.width));
-    const value = Math.round(ratio * 100 / 10) * 10; // snap to 10s
-    store.setResponseStyleValue(value);
-  };
+  const trackLayoutRef = useRef({ x: 0, width: 0 });
 
   const sliderPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => handleSliderTouch(evt.nativeEvent.pageX),
-      onPanResponderMove: (evt) => handleSliderTouch(evt.nativeEvent.pageX),
+      onPanResponderGrant: (evt) => {
+        const layout = trackLayoutRef.current;
+        if (layout.width === 0) return;
+        const ratio = Math.max(0, Math.min(1, (evt.nativeEvent.pageX - layout.x) / layout.width));
+        const value = Math.round(ratio * 100 / 10) * 10;
+        useSettingsStore.getState().setResponseStyleValue(value);
+        Haptics.selectionAsync();
+      },
+      onPanResponderMove: (evt) => {
+        const layout = trackLayoutRef.current;
+        if (layout.width === 0) return;
+        const ratio = Math.max(0, Math.min(1, (evt.nativeEvent.pageX - layout.x) / layout.width));
+        const value = Math.round(ratio * 100 / 10) * 10;
+        useSettingsStore.getState().setResponseStyleValue(value);
+      },
     })
   ).current;
 
@@ -180,7 +186,7 @@ export function SettingsScreen() {
           {/* Privacy & Security */}
           <SettingsGroup title={t('settings.privacy')} highlighted titleColor={colors.amber}>
             <SettingsRow icon="shield" label={t('settings.e2ee')} value={t('settings.e2eeActive')} valueColor={colors.success} />
-            <SettingsRow icon="hard-drive" label={t('settings.localStorage')} showArrow />
+            <SettingsRow icon="hard-drive" label={t('settings.localStorage')} value={t('settings.e2eeActive')} valueColor={colors.success} />
             <SettingsRow
               icon="lock"
               label={t('settings.biometricLock')}
@@ -263,7 +269,7 @@ export function SettingsScreen() {
                 style={styles.sliderTrack}
                 onLayout={() => {
                   sliderTrackRef.current?.measureInWindow((x, _y, w) => {
-                    setTrackLayout({ x, width: w });
+                    trackLayoutRef.current = { x, width: w };
                   });
                 }}
                 {...sliderPanResponder.panHandlers}

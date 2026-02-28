@@ -4,8 +4,9 @@ import { TIER_CONFIG } from '../types/subscription';
 import * as usageRepo from '../services/storage/usageRepo';
 import * as settingsRepo from '../services/storage/settingsRepo';
 
-// In dev mode, default to premium with no limits
-const IS_DEV = __DEV__;
+// TestFlight / dev: default to premium with no limits.
+// TODO: revert to `__DEV__` check before App Store release.
+const IS_DEV = true;
 const DEV_DEFAULT_TIER: SubscriptionTier = 'premium';
 
 interface SubscriptionState {

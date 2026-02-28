@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'expo-crypto';
 import type { MemoryEntry, MemoryCategory } from '../types/memory';
 import * as memoryRepo from '../services/storage/memoryRepo';
 
@@ -42,7 +42,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
 
   addMemory: (category, title, content) => {
     const now = new Date().toISOString();
-    const entry: MemoryEntry = { id: uuid(), category, title, content, createdAt: now, updatedAt: now };
+    const entry: MemoryEntry = { id: randomUUID(), category, title, content, createdAt: now, updatedAt: now };
     set((state) => ({ memories: [...state.memories, entry] }));
     memoryRepo.insertMemory(entry).catch(() => {});
   },
@@ -50,7 +50,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   addMemories: (entries) => {
     const now = new Date().toISOString();
     const newEntries: MemoryEntry[] = entries.map((e) => ({
-      id: uuid(), category: e.category, title: e.title, content: e.content,
+      id: randomUUID(), category: e.category, title: e.title, content: e.content,
       createdAt: now, updatedAt: now,
     }));
     set((state) => ({ memories: [...state.memories, ...newEntries] }));
