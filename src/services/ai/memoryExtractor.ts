@@ -36,13 +36,30 @@ export async function extractMemories(
   const modelInfo = getModelInfo(selectedModel);
   if (!modelInfo) return [];
 
-  // Skip memory extraction for task-based providers (Manus)
-  // They don't support /chat/completions and would waste credits
-  if (modelInfo.provider === 'manus') return [];
+  // Manus doesn't support /chat/completions — try to fall back to another model
+  if (modelInfo.provider === 'manus') {
+    // Try gpt-4o-mini (cheap) → any available OpenAI model → any Anthropic model
+    const fallbackOrder = ['gpt-4o-mini', 'gpt-4o', 'claude-sonnet-4-6', 'deepseek-v3', 'glm-4-flash'];
+    for (const fbId of fallbackOrder) {
+      const fbInfo = getModelInfo(fbId);
+      if (fbInfo && apiKeys[fbInfo.apiKeyField]) {
+        return extractMemoriesWithModel(messages, fbInfo, apiKeys[fbInfo.apiKeyField]);
+      }
+    }
+    return []; // No fallback model available
+  }
 
   const apiKey = apiKeys[modelInfo.apiKeyField];
   if (!apiKey) return [];
 
+  return extractMemoriesWithModel(messages, modelInfo, apiKey);
+}
+
+async function extractMemoriesWithModel(
+  messages: ChatMessage[],
+  modelInfo: { provider: string; apiModelId: string; apiKeyField?: string },
+  apiKey: string,
+): Promise<ExtractedMemory[]> {
   // Build a condensed conversation for extraction
   const recentMessages = messages.slice(-10);
   const conversationText = recentMessages
@@ -69,7 +86,7 @@ export async function extractMemories(
         },
       );
     } else {
-      const baseUrl = PROVIDER_BASE_URLS[modelInfo.provider];
+      const baseUrl = PROVIDER_BASE_URLS[modelInfo.provider as keyof typeof PROVIDER_BASE_URLS];
       await streamOpenAICompatibleChat(
         baseUrl,
         apiKey,

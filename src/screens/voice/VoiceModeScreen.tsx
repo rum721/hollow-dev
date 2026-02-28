@@ -109,11 +109,12 @@ export function VoiceModeScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
             <Feather name="x" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <SessionTimer seconds={sessionSeconds} />
+          </View>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
             <Feather name="type" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
-          <View style={{ flex: 1 }} />
-          <SessionTimer seconds={sessionSeconds} />
         </View>
 
         <View style={styles.content}>

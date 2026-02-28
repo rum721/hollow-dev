@@ -38,6 +38,7 @@ export async function stopRecording(): Promise<string | null> {
 export async function transcribeAudio(
   audioUri: string,
   config: VoiceServiceConfig,
+  language?: string,
 ): Promise<string> {
   const formData = new FormData();
 
@@ -56,7 +57,11 @@ export async function transcribeAudio(
   }
 
   formData.append('model', 'whisper-1');
-  formData.append('language', 'zh'); // Default to Chinese; could be made configurable
+  // Pass language hint if available; otherwise let Whisper auto-detect
+  if (language === 'zh' || language === 'en') {
+    formData.append('language', language);
+  }
+  // When language is 'auto' or undefined, omit the param for auto-detection
 
   const res = await apiFetch(WHISPER_API, {
     method: 'POST',

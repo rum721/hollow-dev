@@ -60,17 +60,20 @@ export function useStreaming() {
           onToken: (token: string) => appendStreamToken(token),
           onComplete: (fullResponse: string) => {
             finalizeAssistantMessage(sessionId, fullResponse);
-            // Async memory extraction — runs in background
+            // Async memory extraction — runs every 5 user messages to reduce API cost
             const allMsgs = useChatStore.getState().messages[sessionId] ?? [];
-            const chatMsgs: ChatMessage[] = allMsgs.slice(-10).map((m) => ({
-              role: m.role as 'user' | 'assistant',
-              content: m.content,
-            }));
-            extractMemories(chatMsgs, settings.selectedModel, settings.apiKeys).then((memories) => {
-              if (memories.length > 0) {
-                useMemoryStore.getState().addMemories(memories);
-              }
-            }).catch(() => {});
+            const userMsgCount = allMsgs.filter((m) => m.role === 'user').length;
+            if (userMsgCount % 5 === 0) {
+              const chatMsgs: ChatMessage[] = allMsgs.slice(-10).map((m) => ({
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+              }));
+              extractMemories(chatMsgs, settings.selectedModel, settings.apiKeys).then((memories) => {
+                if (memories.length > 0) {
+                  useMemoryStore.getState().addMemories(memories);
+                }
+              }).catch(() => {});
+            }
           },
           onError: (error: Error) => {
             appendStreamToken(`\n\n${error.message}`);

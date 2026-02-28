@@ -275,6 +275,16 @@ export function SettingsScreen() {
             </View>
           </SettingsGroup>
 
+          {/* Premium Routing Hint */}
+          {tier === 'premium' && (
+            <View style={styles.premiumHint}>
+              <Feather name="zap" size={14} color={colors.amber} />
+              <HollowText variant="label" color={colors.textSecondary} style={{ flex: 1, marginLeft: 8 }}>
+                {t('settings.premiumRoutingHint')}
+              </HollowText>
+            </View>
+          )}
+
           {/* Subscription */}
           <SettingsGroup title={t('settings.subscription')}>
             <SettingsRow
@@ -476,5 +486,17 @@ const styles = StyleSheet.create({
   },
   modelItemActive: {
     backgroundColor: colors.amberMuted,
+  },
+  premiumHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 165, 116, 0.08)',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderRadius: borderRadius.sm,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.amber,
   },
 });

@@ -120,7 +120,9 @@
     "about": "关于",
     "privacyPolicy": "隐私政策",
     "termsOfService": "服务条款",
-    "version": "版本"
+    "version": "版本",
+    "premiumRoutingHint": "启用智能路由：需同时添加 OpenAI 和 Anthropic API 密钥",
+    "apiKeyRequired": "需要 API 密钥才能开始对话"
   },
   "upgrade": {
     "freeLimit": "今天的免费消息额度已用完（每天5条）。",
@@ -143,6 +145,12 @@
       "byok": "自带 API 密钥",
       "priority": "优先客服支持"
     }
+  },
+  "apiKeyGuide": {
+    "title": "还需一步",
+    "subtitle": "开始对话前，你需要添加一个 API 密钥。可以从任何支持的 AI 服务商获取。",
+    "goToSettings": "前往设置",
+    "skipForNow": "暂时跳过"
   },
   "common": {
     "confirm": "确认",

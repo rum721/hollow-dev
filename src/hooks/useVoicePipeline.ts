@@ -53,10 +53,13 @@ export function useVoicePipeline(sessionId: string) {
         return;
       }
 
-      // Step 1: Transcribe audio via Whisper
-      const text = await voiceService.transcribeAudio(audioUri, {
-        openaiApiKey: openaiKey,
-      });
+      // Step 1: Transcribe audio via Whisper (pass language setting for accuracy)
+      const langSetting = settings.language; // 'auto' | 'en' | 'zh'
+      const text = await voiceService.transcribeAudio(
+        audioUri,
+        { openaiApiKey: openaiKey },
+        langSetting === 'auto' ? undefined : langSetting,
+      );
       setTranscript(text);
 
       if (!text.trim()) {

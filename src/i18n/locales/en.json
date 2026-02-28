@@ -120,7 +120,9 @@
     "about": "About",
     "privacyPolicy": "Privacy Policy",
     "termsOfService": "Terms of Service",
-    "version": "Version"
+    "version": "Version",
+    "premiumRoutingHint": "Enable smart routing: add both OpenAI and Anthropic API keys",
+    "apiKeyRequired": "API key required to start chatting"
   },
   "upgrade": {
     "freeLimit": "You've reached today's free message limit (5/day).",
@@ -143,6 +145,12 @@
       "byok": "Bring your own API key",
       "priority": "Priority support"
     }
+  },
+  "apiKeyGuide": {
+    "title": "One More Step",
+    "subtitle": "To start chatting, you need to add an API key. You can get one from any supported AI provider.",
+    "goToSettings": "Go to Settings",
+    "skipForNow": "Skip for Now"
   },
   "common": {
     "confirm": "Confirm",

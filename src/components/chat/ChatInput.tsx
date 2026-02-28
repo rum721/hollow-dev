@@ -15,10 +15,12 @@ import { useI18n } from '../../i18n';
 interface Props {
   onSend: (text: string) => void;
   onMicPress: () => void;
+  onCancel?: () => void;
+  isStreaming?: boolean;
   disabled?: boolean;
 }
 
-export function ChatInput({ onSend, onMicPress, disabled }: Props) {
+export function ChatInput({ onSend, onMicPress, onCancel, isStreaming, disabled }: Props) {
   const { t } = useI18n();
   const [text, setText] = useState('');
   const glowOpacity = useSharedValue(0.3);
@@ -60,13 +62,26 @@ export function ChatInput({ onSend, onMicPress, disabled }: Props) {
         maxLength={2000}
         editable={!disabled}
       />
-      <TouchableOpacity
-        onPress={handleSend}
-        style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
-        disabled={!text.trim() || disabled}
-      >
-        <Feather name="send" size={18} color={text.trim() ? colors.background : colors.textMuted} />
-      </TouchableOpacity>
+      {isStreaming ? (
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            onCancel?.();
+          }}
+          style={styles.stopBtn}
+          activeOpacity={0.7}
+        >
+          <Feather name="square" size={16} color={colors.background} />
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          onPress={handleSend}
+          style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
+          disabled={!text.trim() || disabled}
+        >
+          <Feather name="send" size={18} color={text.trim() ? colors.background : colors.textMuted} />
+        </TouchableOpacity>
+      )}
     </Animated.View>
   );
 }
@@ -107,5 +122,14 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: colors.surfaceLight,
+  },
+  stopBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
   },
 });
