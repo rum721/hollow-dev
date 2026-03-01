@@ -1,7 +1,7 @@
 /**
  * Premium tier intelligent model router.
  *
- * Routes conversations between GPT-4o and Claude Sonnet based on the
+ * Routes conversations between GPT-5.2 and Claude Sonnet based on the
  * emotional vs analytical nature of the user's latest message.
  *
  * Default split: 70% GPT / 30% Claude (when no clear signal is detected).
@@ -43,7 +43,7 @@ const ANALYTICAL_KEYWORDS_ZH = new Set([
 // ── Model IDs used by the router ────────────────────────────────────
 
 const CLAUDE_MODEL_ID = 'claude-sonnet-4-6';
-const GPT_MODEL_ID = 'gpt-4o';
+const GPT_MODEL_ID = 'gpt-5.2';
 
 // ── Public API ──────────────────────────────────────────────────────
 

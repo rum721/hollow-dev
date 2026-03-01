@@ -39,17 +39,17 @@ export const MODEL_LIST: ModelInfo[] = [
   },
   // — OpenAI —
   {
-    id: 'gpt-4o',
-    label: 'GPT-4o',
+    id: 'gpt-5.2',
+    label: 'GPT-5.2',
     provider: 'openai',
-    apiModelId: 'gpt-4o',
+    apiModelId: 'gpt-5.2',
     apiKeyField: 'openaiApiKey',
   },
   {
-    id: 'gpt-4o-mini',
-    label: 'GPT-4o Mini',
+    id: 'gpt-5.2-pro',
+    label: 'GPT-5.2 Pro',
     provider: 'openai',
-    apiModelId: 'gpt-4o-mini',
+    apiModelId: 'gpt-5.2-pro',
     apiKeyField: 'openaiApiKey',
   },
   {
@@ -59,12 +59,19 @@ export const MODEL_LIST: ModelInfo[] = [
     apiModelId: 'o3',
     apiKeyField: 'openaiApiKey',
   },
+  {
+    id: 'gpt-4o-mini',
+    label: 'GPT-4o Mini',
+    provider: 'openai',
+    apiModelId: 'gpt-4o-mini',
+    apiKeyField: 'openaiApiKey',
+  },
   // — Google —
   {
-    id: 'gemini-2.5-pro',
-    label: 'Gemini 2.5 Pro',
+    id: 'gemini-3.1-pro',
+    label: 'Gemini 3.1 Pro',
     provider: 'google',
-    apiModelId: 'gemini-2.5-pro-preview-05-06',
+    apiModelId: 'gemini-3.1-pro-preview',
     apiKeyField: 'googleApiKey',
   },
   {
@@ -76,8 +83,8 @@ export const MODEL_LIST: ModelInfo[] = [
   },
   // — DeepSeek —
   {
-    id: 'deepseek-v3',
-    label: 'DeepSeek V3',
+    id: 'deepseek-v3.2',
+    label: 'DeepSeek V3.2',
     provider: 'deepseek',
     apiModelId: 'deepseek-chat',
     apiKeyField: 'deepseekApiKey',
@@ -91,10 +98,10 @@ export const MODEL_LIST: ModelInfo[] = [
   },
   // — 智谱 GLM —
   {
-    id: 'glm-4-plus',
-    label: 'GLM-4 Plus',
+    id: 'glm-5',
+    label: 'GLM-5',
     provider: 'zhipu',
-    apiModelId: 'glm-4-plus',
+    apiModelId: 'glm-5',
     apiKeyField: 'zhipuApiKey',
   },
   {
@@ -106,17 +113,17 @@ export const MODEL_LIST: ModelInfo[] = [
   },
   // — 通义千问 Qwen —
   {
-    id: 'qwen-max',
-    label: 'Qwen Max',
+    id: 'qwen3-max',
+    label: 'Qwen3 Max',
     provider: 'qwen',
-    apiModelId: 'qwen-max',
+    apiModelId: 'qwen3-max',
     apiKeyField: 'qwenApiKey',
   },
   {
-    id: 'qwen-plus',
-    label: 'Qwen Plus',
+    id: 'qwen3.5-plus',
+    label: 'Qwen3.5 Plus',
     provider: 'qwen',
-    apiModelId: 'qwen-plus',
+    apiModelId: 'qwen3.5-plus',
     apiKeyField: 'qwenApiKey',
   },
   // — MiniMax —
@@ -129,10 +136,10 @@ export const MODEL_LIST: ModelInfo[] = [
   },
   // — Moonshot (月之暗面 Kimi) —
   {
-    id: 'moonshot-v1-128k',
-    label: 'Kimi (Moonshot)',
+    id: 'kimi-k2.5',
+    label: 'Kimi K2.5',
     provider: 'moonshot',
-    apiModelId: 'moonshot-v1-128k',
+    apiModelId: 'kimi-k2.5',
     apiKeyField: 'moonshotApiKey',
   },
   // — 百川 Baichuan —
