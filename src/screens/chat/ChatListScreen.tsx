@@ -317,6 +317,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(212, 165, 116, 0.3)',
   },
   sessionHeader: {
     flexDirection: 'row',

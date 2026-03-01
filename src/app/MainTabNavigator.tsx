@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View, Platform, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { StyleSheet, View, Platform, TouchableOpacity, AppState } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
@@ -9,8 +9,11 @@ import { MemoryStackNavigator } from './MemoryStackNavigator';
 import { SettingsStackNavigator } from './SettingsStackNavigator';
 import { HollowText } from '../components/common/HollowText';
 import { colors, spacing } from '../theme';
-import { useI18n } from '../i18n';
+import { useI18n, getEffectiveLocale } from '../i18n';
 import { useResponsive } from '../hooks/useResponsive';
+import { useChatStore } from '../store/useChatStore';
+import { useSettingsStore } from '../store/useSettingsStore';
+import { shouldSendGreeting, markGreetingSent, generateGreeting } from '../services/greeting/dailyGreeting';
 import type { MainTabParamList } from '../types/navigation';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -24,6 +27,45 @@ const DESKTOP_NAV_ITEMS: { name: keyof MainTabParamList; icon: string; labelKey:
 export function MainTabNavigator() {
   const { t } = useI18n();
   const { isDesktop } = useResponsive();
+  const greetingChecked = useRef(false);
+
+  useEffect(() => {
+    const checkGreeting = async () => {
+      try {
+        const should = await shouldSendGreeting();
+        if (!should) return;
+
+        const settings = useSettingsStore.getState();
+        const chatState = useChatStore.getState();
+
+        // Find the most recently active session
+        const activeSessions = chatState.sessions.filter((s) => s.status === 'active');
+        if (activeSessions.length === 0) return;
+
+        const latestSession = activeSessions[0]; // sorted by updatedAt
+        const locale = getEffectiveLocale(settings.language);
+        const greeting = generateGreeting(settings.nickname, settings.conversationStyle, locale);
+
+        chatState.addAssistantMessage(latestSession.id, greeting);
+        await markGreetingSent();
+      } catch {}
+    };
+
+    // Check on first mount (slight delay so sessions are loaded)
+    if (!greetingChecked.current) {
+      greetingChecked.current = true;
+      setTimeout(checkGreeting, 1000);
+    }
+
+    // Also check when app comes to foreground
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        checkGreeting();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   return (
     <Tab.Navigator

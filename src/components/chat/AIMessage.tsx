@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { colors, spacing } from '../../theme';
 import { HollowText } from '../common/HollowText';
 import { formatTime } from '../../utils/formatters';
@@ -8,6 +10,7 @@ interface Props {
   content: string;
   createdAt?: string;
   isStreaming?: boolean;
+  onCopy?: () => void;
 }
 
 function renderMarkdown(text: string): React.ReactNode[] {
@@ -111,11 +114,21 @@ function renderInline(text: string): React.ReactNode[] {
   return parts.length > 0 ? parts : [<Text key="plain">{text}</Text>];
 }
 
-export function AIMessage({ content, createdAt, isStreaming }: Props) {
+export function AIMessage({ content, createdAt, isStreaming, onCopy }: Props) {
+  const handleLongPress = async () => {
+    await Clipboard.setStringAsync(content);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onCopy?.();
+  };
+
   return (
-    <View style={styles.container}>
+    <TouchableOpacity
+      onLongPress={isStreaming ? undefined : handleLongPress}
+      activeOpacity={isStreaming ? 1 : 0.7}
+      style={styles.container}
+    >
       <View style={styles.accentLine} />
-      <View style={styles.content}>
+      <View style={styles.content} pointerEvents="none">
         <View>
           {renderMarkdown(content)}
           {isStreaming ? <Text style={mdStyles.cursor}>|</Text> : null}
@@ -126,7 +139,7 @@ export function AIMessage({ content, createdAt, isStreaming }: Props) {
           </HollowText>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -160,14 +173,14 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
   },
   accentLine: {
-    width: 3,
-    backgroundColor: colors.amber,
-    borderRadius: 2,
+    width: 2,
+    backgroundColor: 'rgba(212, 165, 116, 0.4)',
+    borderRadius: 1,
     marginRight: spacing.md,
   },
-  content: { flex: 1 },
+  content: { flex: 1, maxWidth: '90%' },
   time: { marginTop: spacing.xs },
 });

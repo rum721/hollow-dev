@@ -31,6 +31,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   highlighted: {
-    borderColor: colors.amberDark,
+    borderColor: 'rgba(212, 165, 116, 0.2)',
   },
 });

@@ -16,6 +16,7 @@ interface ChatState {
   createSession: () => Promise<string>;
   setCurrentSession: (id: string | null) => void;
   addUserMessage: (sessionId: string, content: string) => void;
+  addAssistantMessage: (sessionId: string, content: string) => void;
   appendStreamToken: (token: string) => void;
   finalizeAssistantMessage: (sessionId: string, overrideText?: string) => void;
   setStreaming: (val: boolean) => void;
@@ -56,9 +57,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   createSession: async () => {
     const count = await conversationRepo.getSessionCount().catch(() => get().sessions.length);
     const id = randomUUID();
+
+    // Generate time-based default title
+    const now = new Date();
+    const hour = now.getHours();
+    let timeLabel: string;
+    if (hour >= 5 && hour < 12) timeLabel = '清晨';
+    else if (hour >= 12 && hour < 14) timeLabel = '午间';
+    else if (hour >= 14 && hour < 18) timeLabel = '午后';
+    else if (hour >= 18 && hour < 22) timeLabel = '傍晚';
+    else timeLabel = '深夜';
+
     const session: Session = {
       id,
-      title: `Session ${count + 1}`,
+      title: `${timeLabel}的留白`,
       sessionNumber: count + 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -81,6 +93,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
       id: randomUUID(),
       sessionId,
       role: 'user',
+      content,
+      createdAt: new Date().toISOString(),
+    };
+    const msgs = [...(get().messages[sessionId] ?? []), msg];
+    set((state) => ({
+      messages: { ...state.messages, [sessionId]: msgs },
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId
+          ? { ...s, updatedAt: new Date().toISOString(), lastMessage: content, messageCount: msgs.length }
+          : s,
+      ),
+    }));
+    conversationRepo.insertMessage(msg).catch(() => {});
+    conversationRepo.updateSessionLastMessage(sessionId, content, msgs.length).catch(() => {});
+  },
+
+  addAssistantMessage: (sessionId, content) => {
+    const msg: Message = {
+      id: randomUUID(),
+      sessionId,
+      role: 'assistant',
       content,
       createdAt: new Date().toISOString(),
     };

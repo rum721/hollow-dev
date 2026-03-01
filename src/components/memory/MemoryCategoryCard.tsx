@@ -17,7 +17,7 @@ export function MemoryCategoryCard({ title, entries, onEdit, onDelete }: Props) 
   if (entries.length === 0) return null;
 
   return (
-    <CardContainer highlighted style={styles.card}>
+    <CardContainer style={styles.card}>
       <HollowText variant="subheading" serif color={colors.amber} style={styles.title}>
         {title}
       </HollowText>

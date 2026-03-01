@@ -184,7 +184,7 @@ export function SettingsScreen() {
           </SettingsGroup>
 
           {/* Privacy & Security */}
-          <SettingsGroup title={t('settings.privacy')} highlighted titleColor={colors.amber}>
+          <SettingsGroup title={t('settings.privacy')}>
             <SettingsRow icon="shield" label={t('settings.e2ee')} value={t('settings.e2eeActive')} valueColor={colors.success} />
             <SettingsRow icon="hard-drive" label={t('settings.localStorage')} value={t('settings.e2eeActive')} valueColor={colors.success} />
             <SettingsRow

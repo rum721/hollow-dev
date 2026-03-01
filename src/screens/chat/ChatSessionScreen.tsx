@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -47,6 +47,24 @@ export function ChatSessionScreen() {
   const { isConnected } = useNetworkStatus();
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [dismissedApiGuide, setDismissedApiGuide] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleCopy = useCallback(() => {
+    setShowCopiedToast(true);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setShowCopiedToast(false), 1500);
+  }, []);
+  const isNearBottomRef = useRef(true);
+
+  const handleScroll = useCallback((event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    const nearBottom = distanceFromBottom < 300;
+    isNearBottomRef.current = nearBottom;
+    setShowScrollToBottom(!nearBottom);
+  }, []);
 
   // Check if the current model has an API key configured
   const apiKeys = useSettingsStore((s) => s.apiKeys);
@@ -79,19 +97,21 @@ export function ChatSessionScreen() {
 
   const renderMessage = ({ item }: { item: typeof displayMessages[number] }) => {
     if (item.role === 'user') {
-      return <UserMessage content={item.content} createdAt={(item as Message).createdAt} />;
+      return <UserMessage content={item.content} createdAt={(item as Message).createdAt} onCopy={handleCopy} />;
     }
     return (
       <AIMessage
         content={item.content}
         createdAt={item.role === 'streaming' ? undefined : (item as Message).createdAt}
         isStreaming={item.role === 'streaming'}
+        onCopy={handleCopy}
       />
     );
   };
 
+  // Auto-scroll only when user is near bottom (new messages / streaming)
   useEffect(() => {
-    if (displayMessages.length > 0) {
+    if (displayMessages.length > 0 && isNearBottomRef.current) {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [displayMessages.length, streamingText]);
@@ -113,6 +133,13 @@ export function ChatSessionScreen() {
           data={displayMessages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
+          onScroll={handleScroll}
+          scrollEventThrottle={100}
+          onContentSizeChange={() => {
+            if (isNearBottomRef.current) {
+              flatListRef.current?.scrollToEnd({ animated: false });
+            }
+          }}
           contentContainerStyle={[
             styles.messageList,
             isDesktop && { maxWidth: chatMaxWidth, alignSelf: 'center', width: '100%' },
@@ -131,6 +158,19 @@ export function ChatSessionScreen() {
           initialNumToRender={10}
           removeClippedSubviews={Platform.OS === 'android'}
         />
+        {showScrollToBottom && (
+          <TouchableOpacity
+            style={styles.scrollToBottomBtn}
+            onPress={() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+              setShowScrollToBottom(false);
+              isNearBottomRef.current = true;
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="chevron-down" size={20} color={colors.amber} />
+          </TouchableOpacity>
+        )}
       </View>
       {showUpgrade && (
         <UpgradePrompt onDismiss={() => setShowUpgrade(false)} />
@@ -140,6 +180,14 @@ export function ChatSessionScreen() {
           <Feather name="wifi-off" size={14} color={colors.danger} />
           <HollowText variant="caption" color={colors.danger} style={{ marginLeft: 6 }}>
             Network disconnected
+          </HollowText>
+        </View>
+      )}
+      {showCopiedToast && (
+        <View style={styles.copiedToast}>
+          <Feather name="check" size={14} color={colors.amber} />
+          <HollowText variant="caption" color={colors.amber} style={{ marginLeft: 6 }}>
+            已复制
           </HollowText>
         </View>
       )}
@@ -179,6 +227,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
+  },
+  copiedToast: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: Platform.OS === 'ios' ? 150 : 130,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(20, 20, 22, 0.9)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.amberMuted,
+    zIndex: 10,
+  },
+  scrollToBottomBtn: {
+    position: 'absolute',
+    right: 20,
+    bottom: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.amberMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   offlineBanner: {
     flexDirection: 'row',
