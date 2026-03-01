@@ -6,6 +6,7 @@ import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { sendChatMessage } from '../services/ai/aiRouter';
 import { getEffectiveLocale } from '../i18n';
 import * as voiceService from '../services/voice/voiceService';
+import { VoiceError } from '../services/voice/voiceService';
 import type { ChatMessage } from '../services/ai/types';
 
 export type VoicePipelineState =
@@ -27,10 +28,22 @@ export function useVoicePipeline(sessionId: string) {
       setError(null);
       setTranscript('');
       setAiResponse('');
+
+      // Proactive permission check
+      const permStatus = await voiceService.checkMicrophonePermission();
+      if (permStatus === 'denied') {
+        setError('麦克风权限已被拒绝，请前往系统设置开启');
+        return;
+      }
+
       await voiceService.startRecording();
       setState('recording');
     } catch (e: any) {
-      setError(e.message || 'Failed to start recording');
+      if (e instanceof VoiceError && e.code === 'PERMISSION_DENIED') {
+        setError(e.message);
+      } else {
+        setError(e.message || '录音启动失败');
+      }
     }
   }, []);
 
@@ -64,8 +77,9 @@ export function useVoicePipeline(sessionId: string) {
         );
         setTranscript(text);
       } catch (e: any) {
-        if (e.message?.includes('401')) {
-          setError('OpenAI API Key 无效，请在设置中检查');
+        // VoiceError already has user-friendly messages from apiErrorClassifier
+        if (e instanceof VoiceError) {
+          setError(e.message);
         } else if (e.message?.includes('Network') || e.message?.includes('network')) {
           setError('网络连接失败，请检查网络');
         } else {
@@ -161,13 +175,18 @@ export function useVoicePipeline(sessionId: string) {
         setState('idle');
       }
     } catch (e: any) {
-      const msg = e.message || '';
-      if (msg.includes('permission') || msg.includes('Permission')) {
-        setError('麦克风权限未授权，请在系统设置中开启');
-      } else if (msg.includes('not available')) {
-        setError('当前设备不支持语音功能');
+      if (e instanceof VoiceError) {
+        // Use the already-classified message from VoiceError
+        setError(e.message);
       } else {
-        setError(msg || '语音处理出错，请重试');
+        const msg = e.message || '';
+        if (msg.includes('permission') || msg.includes('Permission')) {
+          setError('麦克风权限未授权，请在系统设置中开启');
+        } else if (msg.includes('not available')) {
+          setError('当前设备不支持语音功能');
+        } else {
+          setError(msg || '语音处理出错，请重试');
+        }
       }
       setState('idle');
     }
@@ -191,5 +210,7 @@ export function useVoicePipeline(sessionId: string) {
     startRecording,
     stopRecordingAndProcess,
     cancel,
+    /** Open system settings for microphone permission re-authorization */
+    openMicSettings: voiceService.openMicrophoneSettings,
   };
 }

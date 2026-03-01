@@ -71,7 +71,9 @@
     "holdToSpeak": "Hold to speak",
     "error": "Error: {{message}}",
     "needApiKey": "Voice mode requires an OpenAI API Key",
-    "goToSettings": "Go to Settings"
+    "goToSettings": "Go to Settings",
+    "permissionDenied": "Microphone permission denied. Please enable it in Settings.",
+    "openSettings": "Open Settings"
   },
   "memory": {
     "title": "Your Memory",
@@ -119,6 +121,8 @@
     "importSuccess": "Import successful",
     "importStats": "Imported {{profiles}} profiles and {{episodes}} memories",
     "importError": "Parsing failed, please check file format",
+    "importFileTooLarge": "File too large. Maximum 500KB of text supported.",
+    "importEmptyFile": "The selected file appears to be empty.",
     "importEmpty": "No valuable information found",
     "retry": "Retry",
     "onboardingProfileTitle": "Want me to know you faster?",

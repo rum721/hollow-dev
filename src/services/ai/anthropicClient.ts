@@ -1,5 +1,6 @@
 import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
 import { apiFetch } from './apiFetch';
+import { classifyApiError, classifyNetworkError } from './apiErrorClassifier';
 
 export async function streamAnthropicChat(
   apiKey: string,
@@ -85,8 +86,9 @@ export async function streamAnthropicChat(
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Anthropic API error ${response.status}: ${err}`);
+      const errBody = await response.text().catch(() => '');
+      const classified = classifyApiError(response.status, errBody);
+      throw new Error(classified.message);
     }
 
     const data = await response.json();
@@ -108,17 +110,24 @@ export async function streamAnthropicChat(
         });
 
         if (!res.ok) {
-          const err = await res.text();
-          throw new Error(`Anthropic API error ${res.status}: ${err}`);
+          const errBody = await res.text().catch(() => '');
+          const classified = classifyApiError(res.status, errBody);
+          throw new Error(classified.message);
         }
 
         const r = res.body?.getReader();
         return r ?? null;
-      } catch {
+      } catch (e) {
+        if (e instanceof Error && !e.message.includes('fetch')) throw e;
         return null;
       }
     }
   } catch (error) {
-    callbacks.onError(error instanceof Error ? error : new Error(String(error)));
+    if (error instanceof Error) {
+      callbacks.onError(error);
+    } else {
+      const classified = classifyNetworkError(error);
+      callbacks.onError(new Error(classified.message));
+    }
   }
 }

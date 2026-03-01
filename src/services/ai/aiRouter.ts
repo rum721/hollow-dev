@@ -5,6 +5,7 @@ import { getModelInfo, PROVIDER_BASE_URLS } from './models';
 import { buildSystemPrompt, getMaxTokensForStyle } from './promptBuilder';
 import { anonymizeMessages, shouldAnonymize } from './dataAnonymizer';
 import { getPremiumModelId } from './premiumRouter';
+import { classifyApiError } from './apiErrorClassifier';
 import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
 import type { ConversationStyle } from '../../types/settings';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
@@ -132,7 +133,7 @@ export async function sendChatMessage(
 
 export async function validateApiKey(modelId: string, apiKey: string): Promise<{ valid: boolean; error?: string }> {
   const modelInfo = getModelInfo(modelId);
-  if (!modelInfo) return { valid: false, error: 'Unknown model' };
+  if (!modelInfo) return { valid: false, error: '未知模型' };
 
   try {
     if (modelInfo.provider === 'anthropic') {
@@ -150,8 +151,9 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
         }),
       });
       if (response.ok || response.status === 200) return { valid: true };
-      if (response.status === 401) return { valid: false, error: 'Invalid API key' };
-      return { valid: false, error: `Error ${response.status}` };
+      const errBody = await response.text().catch(() => '');
+      const classified = classifyApiError(response.status, errBody);
+      return { valid: false, error: classified.message };
     }
 
     if (modelInfo.provider === 'manus') {
@@ -176,10 +178,10 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
     });
 
     if (response.ok || response.status === 200) return { valid: true };
-    if (response.status === 401) return { valid: false, error: 'Invalid API key' };
     const errBody = await response.text().catch(() => '');
-    return { valid: false, error: `Error ${response.status}: ${errBody.slice(0, 200)}` };
+    const classified = classifyApiError(response.status, errBody);
+    return { valid: false, error: classified.message };
   } catch (e) {
-    return { valid: false, error: 'Network error' };
+    return { valid: false, error: '网络连接失败，请检查网络设置' };
   }
 }

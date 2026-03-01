@@ -3,6 +3,61 @@ import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import type { ProfileCategory, EmotionTag } from '../../types/memory';
 import { getModelInfo, PROVIDER_BASE_URLS } from '../ai/models';
 import { apiFetch } from '../ai/apiFetch';
+import { logError } from '../../utils/errorLogger';
+
+// ============================================
+// Security: input sanitization
+// ============================================
+
+/** Maximum file size: 500 KB of UTF-8 text */
+const MAX_FILE_SIZE = 512_000;
+/** Maximum entries to import per category */
+const MAX_PROFILES = 200;
+const MAX_EPISODES = 500;
+/** Maximum length of a single field value */
+const MAX_FIELD_LENGTH = 2000;
+
+/**
+ * Strip dangerous content from imported text:
+ * - HTML/script tags (XSS vectors)
+ * - JavaScript: / data: URIs
+ * - On-event attributes
+ * - Null bytes and other control characters
+ */
+function sanitizeText(text: string): string {
+  return text
+    // Remove null bytes and non-printable control chars (keep newlines, tabs)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    // Strip <script>…</script> blocks
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    // Strip all remaining HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Remove javascript: and data: URI schemes
+    .replace(/javascript\s*:/gi, '')
+    .replace(/data\s*:[^,\s]*(;base64)?,/gi, '')
+    // Remove on-event handlers (onerror=, onclick=, etc.)
+    .replace(/\bon\w+\s*=/gi, '');
+}
+
+/** Truncate a field value to MAX_FIELD_LENGTH */
+function truncateField(value: string): string {
+  return value.length > MAX_FIELD_LENGTH ? value.slice(0, MAX_FIELD_LENGTH) : value;
+}
+
+/**
+ * Validate file content before parsing.
+ * Returns sanitized content or throws with a user-friendly message.
+ */
+export function validateFileContent(content: string): string {
+  if (!content || typeof content !== 'string') {
+    throw new Error('IMPORT_EMPTY_FILE');
+  }
+  if (content.length > MAX_FILE_SIZE) {
+    throw new Error('IMPORT_FILE_TOO_LARGE');
+  }
+  // Sanitize the entire input
+  return sanitizeText(content);
+}
 
 // ============================================
 // File picking
@@ -19,14 +74,26 @@ export async function pickMarkdownFile(): Promise<string | null> {
       return null;
     }
 
-    const fileUri = result.assets[0].uri;
+    const asset = result.assets[0];
+
+    // Pre-validate file size if available
+    if (asset.size && asset.size > MAX_FILE_SIZE) {
+      throw new Error('IMPORT_FILE_TOO_LARGE');
+    }
+
+    const fileUri = asset.uri;
     const content = await readAsStringAsync(fileUri, {
       encoding: EncodingType.UTF8,
     });
 
-    return content;
+    // Validate and sanitize
+    return validateFileContent(content);
   } catch (error) {
-    console.error('Failed to pick file:', error);
+    // Re-throw known import errors for the UI to handle
+    if (error instanceof Error && error.message.startsWith('IMPORT_')) {
+      throw error;
+    }
+    logError('import', 'pickFile')(error);
     return null;
   }
 }
@@ -50,7 +117,9 @@ export function parseHollowExport(content: string): {
   const profiles: Array<{ key: string; category: ProfileCategory; title: string; content: string }> = [];
   const episodes: Array<{ content: string; emotion: EmotionTag; intensity: number; eventDate: string }> = [];
 
-  const lines = content.split('\n');
+  // Sanitize input before parsing
+  const sanitized = sanitizeText(content);
+  const lines = sanitized.split('\n');
   let currentSection: 'profile' | 'episode' | 'summary' | null = null;
   let currentCategory: ProfileCategory = 'identity';
   let currentDate = '';
@@ -77,7 +146,7 @@ export function parseHollowExport(content: string): {
     if (trimmed === '## 对话摘要') { currentSection = 'summary'; continue; }
     if (trimmed === '## 导入说明') { currentSection = null; continue; }
 
-    if (currentSection === 'profile') {
+    if (currentSection === 'profile' && profiles.length < MAX_PROFILES) {
       // Sub-category heading: ### 身份信息
       const catMatch = trimmed.match(/^### (.+)$/);
       if (catMatch) {
@@ -87,18 +156,18 @@ export function parseHollowExport(content: string): {
       // Item: - **title**: content
       const itemMatch = trimmed.match(/^- \*\*(.+?)\*\*:\s*(.+)$/);
       if (itemMatch) {
-        const title = itemMatch[1];
+        const title = truncateField(itemMatch[1]);
         const key = title.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_\u4e00-\u9fff]/g, '');
         profiles.push({
           key: key || `profile_${profiles.length}`,
           category: currentCategory,
           title,
-          content: itemMatch[2],
+          content: truncateField(itemMatch[2]),
         });
       }
     }
 
-    if (currentSection === 'episode') {
+    if (currentSection === 'episode' && episodes.length < MAX_EPISODES) {
       // Date heading: ### 2026-03-01
       const dateMatch = trimmed.match(/^### (\d{4}-\d{2}-\d{2})$/);
       if (dateMatch) {
@@ -112,7 +181,7 @@ export function parseHollowExport(content: string): {
         const intensityDots = epMatch[3];
         const intensity = (intensityDots.match(/●/g) || []).length;
         episodes.push({
-          content: epMatch[1],
+          content: truncateField(epMatch[1]),
           emotion: EMOTION_REVERSE[emotionCn] || 'neutral',
           intensity: intensity || 3,
           eventDate: currentDate || new Date().toISOString().split('T')[0],
@@ -130,10 +199,11 @@ export function parseHollowExport(content: string): {
 // ============================================
 
 export function buildImportParsingPrompt(textContent: string): string {
-  // Truncate to prevent token explosion
-  const truncated = textContent.length > 8000
-    ? textContent.slice(0, 8000) + '\n\n[内容已截断...]'
-    : textContent;
+  // Sanitize then truncate to prevent token explosion and XSS
+  const sanitized = sanitizeText(textContent);
+  const truncated = sanitized.length > 8000
+    ? sanitized.slice(0, 8000) + '\n\n[内容已截断...]'
+    : sanitized;
 
   return `你是 Hollow 的记忆解析系统。用户导入了一份个人文档，请从中提取结构化的记忆信息。
 
@@ -203,30 +273,52 @@ export interface ImportResult {
 
 export function parseAIImportResponse(response: string): ImportResult | null {
   try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    // Extract JSON block — guard against huge payloads
+    const sanitizedResponse = response.length > 100_000
+      ? response.slice(0, 100_000)
+      : response;
+    const jsonMatch = sanitizedResponse.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
 
     const parsed = JSON.parse(jsonMatch[0]);
 
+    // Validate top-level structure
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    if (!Array.isArray(parsed.profiles) && !Array.isArray(parsed.episodes)) return null;
+
     const validCategories = ['identity', 'relationship', 'preference', 'trait'];
     const validEmotions = ['happy', 'sad', 'anxious', 'angry', 'excited', 'calm', 'frustrated', 'hopeful', 'neutral'];
 
-    const profiles = (parsed.profiles || []).map((p: any) => ({
-      key: String(p.key || '').toLowerCase().replace(/\s+/g, '_'),
-      category: (validCategories.includes(p.category) ? p.category : 'identity') as ProfileCategory,
-      title: String(p.title || ''),
-      content: String(p.content || ''),
-    })).filter((p: any) => p.key && p.title && p.content);
+    const profiles = (Array.isArray(parsed.profiles) ? parsed.profiles : [])
+      .slice(0, MAX_PROFILES)
+      .map((p: any) => ({
+        key: sanitizeText(String(p.key || '')).toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_\u4e00-\u9fff]/g, ''),
+        category: (validCategories.includes(p.category) ? p.category : 'identity') as ProfileCategory,
+        title: truncateField(sanitizeText(String(p.title || ''))),
+        content: truncateField(sanitizeText(String(p.content || ''))),
+      }))
+      .filter((p: any) => p.key && p.title && p.content);
 
-    const episodes = (parsed.episodes || []).map((e: any) => ({
-      content: String(e.content || ''),
-      emotion: (validEmotions.includes(e.emotion) ? e.emotion : 'neutral') as EmotionTag,
-      intensity: Math.min(5, Math.max(1, Number(e.intensity) || 3)),
-      eventDate: String(e.event_date || e.eventDate || new Date().toISOString().split('T')[0]),
-    })).filter((e: any) => e.content);
+    const episodes = (Array.isArray(parsed.episodes) ? parsed.episodes : [])
+      .slice(0, MAX_EPISODES)
+      .map((e: any) => {
+        const rawDate = String(e.event_date || e.eventDate || '');
+        // Validate date format (YYYY-MM-DD) or fallback to today
+        const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+          ? rawDate
+          : new Date().toISOString().split('T')[0];
+        return {
+          content: truncateField(sanitizeText(String(e.content || ''))),
+          emotion: (validEmotions.includes(e.emotion) ? e.emotion : 'neutral') as EmotionTag,
+          intensity: Math.min(5, Math.max(1, Number(e.intensity) || 3)),
+          eventDate: dateStr,
+        };
+      })
+      .filter((e: any) => e.content);
 
     return { profiles, episodes };
-  } catch {
+  } catch (error) {
+    logError('import', 'parseAIResponse')(error);
     return null;
   }
 }

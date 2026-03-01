@@ -1,5 +1,6 @@
 import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
 import { apiFetch } from './apiFetch';
+import { classifyApiError, classifyNetworkError } from './apiErrorClassifier';
 
 /**
  * Generic OpenAI-compatible streaming chat client.
@@ -92,8 +93,9 @@ export async function streamOpenAICompatibleChat(
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`API error ${response.status}: ${err}`);
+      const errBody = await response.text().catch(() => '');
+      const classified = classifyApiError(response.status, errBody);
+      throw new Error(classified.message);
     }
 
     const data = await response.json();
@@ -118,17 +120,25 @@ export async function streamOpenAICompatibleChat(
         });
 
         if (!res.ok) {
-          const err = await res.text();
-          throw new Error(`API error ${res.status}: ${err}`);
+          const errBody = await res.text().catch(() => '');
+          const classified = classifyApiError(res.status, errBody);
+          throw new Error(classified.message);
         }
 
         const r = res.body?.getReader();
         return r ?? null;
-      } catch {
+      } catch (e) {
+        // If it's a classified error, re-throw so the outer handler picks it up
+        if (e instanceof Error && !e.message.includes('fetch')) throw e;
         return null;
       }
     }
   } catch (error) {
-    callbacks.onError(error instanceof Error ? error : new Error(String(error)));
+    if (error instanceof Error) {
+      callbacks.onError(error);
+    } else {
+      const classified = classifyNetworkError(error);
+      callbacks.onError(new Error(classified.message));
+    }
   }
 }

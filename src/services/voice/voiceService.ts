@@ -8,20 +8,66 @@
 
 import {
   requestRecordingPermissionsAsync,
+  getRecordingPermissionsAsync,
   setAudioModeAsync,
   createAudioPlayer,
   RecordingPresets,
   AudioModule,
 } from 'expo-audio';
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import { apiFetch } from '../ai/apiFetch';
+import { classifyApiError } from '../ai/apiErrorClassifier';
 
 const WHISPER_API = 'https://api.openai.com/v1/audio/transcriptions';
 const TTS_API = 'https://api.openai.com/v1/audio/speech';
 
+/** Typed error codes for voice permission issues */
+export type VoiceErrorCode =
+  | 'PERMISSION_DENIED'       // User denied mic permission
+  | 'PERMISSION_RESTRICTED'   // System-level restriction (e.g., parental controls)
+  | 'DEVICE_UNSUPPORTED'      // Device has no microphone
+  | 'API_KEY_MISSING'         // No OpenAI API key
+  | 'API_ERROR'               // Whisper/TTS API error
+  | 'RECORDING_ERROR';        // Generic recording failure
+
+export class VoiceError extends Error {
+  code: VoiceErrorCode;
+  constructor(code: VoiceErrorCode, message: string) {
+    super(message);
+    this.name = 'VoiceError';
+    this.code = code;
+  }
+}
+
 export interface VoiceServiceConfig {
   openaiApiKey: string;
   conversationStyle?: string;
+}
+
+/**
+ * Check microphone permission status without requesting it.
+ * Returns 'granted', 'denied', or 'undetermined'.
+ */
+export async function checkMicrophonePermission(): Promise<'granted' | 'denied' | 'undetermined'> {
+  try {
+    const { status, canAskAgain } = await getRecordingPermissionsAsync();
+    if (status === 'granted') return 'granted';
+    if (!canAskAgain) return 'denied'; // permanently denied
+    return 'undetermined';
+  } catch {
+    return 'undetermined';
+  }
+}
+
+/**
+ * Open system settings so user can re-enable microphone permission.
+ */
+export function openMicrophoneSettings(): void {
+  if (Platform.OS === 'ios') {
+    Linking.openURL('app-settings:');
+  } else if (Platform.OS === 'android') {
+    Linking.openSettings();
+  }
 }
 
 // TTS voice mapping based on conversation style
@@ -37,10 +83,19 @@ let currentPlayer: ReturnType<typeof createAudioPlayer> | null = null;
 // --- Recording ---
 
 export async function startRecording(): Promise<void> {
-  // Request permissions
-  const { status } = await requestRecordingPermissionsAsync();
+  // Request permissions with structured error
+  const { status, canAskAgain } = await requestRecordingPermissionsAsync();
   if (status !== 'granted') {
-    throw new Error('Microphone permission denied');
+    if (!canAskAgain) {
+      throw new VoiceError(
+        'PERMISSION_DENIED',
+        '麦克风权限已被拒绝，请在系统设置中手动开启',
+      );
+    }
+    throw new VoiceError(
+      'PERMISSION_DENIED',
+      '需要麦克风权限才能使用语音功能',
+    );
   }
 
   // Configure audio mode for recording
@@ -112,8 +167,9 @@ export async function transcribeAudio(
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Whisper API error: ${res.status} - ${err}`);
+    const errBody = await res.text().catch(() => '');
+    const classified = classifyApiError(res.status, errBody);
+    throw new VoiceError('API_ERROR', classified.message);
   }
 
   const data = await res.json();
@@ -145,8 +201,9 @@ export async function synthesizeSpeech(
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`TTS API error: ${res.status} - ${err}`);
+    const errBody = await res.text().catch(() => '');
+    const classified = classifyApiError(res.status, errBody);
+    throw new VoiceError('API_ERROR', classified.message);
   }
 
   // Convert response to base64 data URI for playback

@@ -71,7 +71,9 @@
     "holdToSpeak": "长按说话",
     "error": "错误：{{message}}",
     "needApiKey": "语音功能需要 OpenAI API Key",
-    "goToSettings": "前往设置"
+    "goToSettings": "前往设置",
+    "permissionDenied": "麦克风权限已被拒绝，请在系统设置中开启",
+    "openSettings": "打开设置"
   },
   "memory": {
     "title": "你的记忆",
@@ -119,6 +121,8 @@
     "importSuccess": "导入成功",
     "importStats": "已导入 {{profiles}} 条画像，{{episodes}} 条记忆",
     "importError": "解析失败，请检查文件格式",
+    "importFileTooLarge": "文件过大，最大支持 500KB 文本",
+    "importEmptyFile": "选择的文件内容为空",
     "importEmpty": "未找到有价值的信息",
     "retry": "重试",
     "onboardingProfileTitle": "想让我更快认识你吗？",
