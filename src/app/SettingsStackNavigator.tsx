@@ -4,6 +4,7 @@ import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { SubscriptionScreen } from '../screens/settings/SubscriptionScreen';
 import { PrivacyPolicyScreen } from '../screens/settings/PrivacyPolicyScreen';
 import { TermsOfServiceScreen } from '../screens/settings/TermsOfServiceScreen';
+import { MemoryImportScreen } from '../screens/settings/MemoryImportScreen';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { colors } from '../theme';
 import type { SettingsStackParamList } from '../types/navigation';
@@ -43,6 +44,13 @@ export function SettingsStackNavigator() {
         {() => (
           <ErrorBoundary>
             <TermsOfServiceScreen />
+          </ErrorBoundary>
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="MemoryImport">
+        {() => (
+          <ErrorBoundary>
+            <MemoryImportScreen />
           </ErrorBoundary>
         )}
       </Stack.Screen>

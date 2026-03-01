@@ -16,13 +16,17 @@ import { HollowText } from '../../components/common/HollowText';
 import { useChatStore } from '../../store/useChatStore';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useMemoryStore } from '../../store/useMemoryStore';
 import { getModelInfo } from '../../services/ai/models';
 import { useStreaming } from '../../hooks/useStreaming';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { summarizeSession } from '../../services/ai/sessionSummarizer';
+import { getSummaryBySessionId, insertSummary } from '../../services/storage/summaryRepo';
 import { colors, spacing } from '../../theme';
 import type { ChatStackParamList } from '../../types/navigation';
 import type { Message } from '../../types/chat';
+import type { ChatMessage } from '../../services/ai/types';
 
 type RouteType = RouteProp<ChatStackParamList, 'ChatSession'>;
 type NavType = NativeStackNavigationProp<ChatStackParamList, 'ChatSession'>;
@@ -77,6 +81,18 @@ export function ChatSessionScreen() {
     loadMessages(sessionId);
   }, [sessionId]);
 
+  // ── Session summary generation on leave ──
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      const msgs = useChatStore.getState().messages[sessionId] ?? [];
+      if (msgs.length >= 4) {
+        // Fire-and-forget: generate summary in background
+        generateSummaryInBackground(sessionId, msgs);
+      }
+    });
+    return unsubscribe;
+  }, [navigation, sessionId]);
+
   const handleSend = async (text: string) => {
     const result = await sendMessage(sessionId, text);
     if (result?.limitReached) {
@@ -115,6 +131,34 @@ export function ChatSessionScreen() {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [displayMessages.length, streamingText]);
+
+  // ── Background summary generation ──
+  async function generateSummaryInBackground(sid: string, msgs: Message[]) {
+    try {
+      const existing = await getSummaryBySessionId(sid);
+      if (existing) return; // Already summarized
+
+      const settings = useSettingsStore.getState();
+      const chatMsgs: ChatMessage[] = msgs.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+      const result = await summarizeSession(chatMsgs, settings.selectedModel, settings.apiKeys);
+      if (result) {
+        await insertSummary({
+          sessionId: sid,
+          summary: result.summary,
+          keyTopics: result.keyTopics,
+          mood: result.mood,
+        });
+        useMemoryStore.getState().invalidateCache();
+        useMemoryStore.getState().loadAll();
+      }
+    } catch {
+      // Non-fatal: summary generation failure doesn't affect the user
+    }
+  }
 
   return (
     <KeyboardAvoidingView

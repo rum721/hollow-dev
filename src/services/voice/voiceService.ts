@@ -1,12 +1,18 @@
 /**
- * Voice Service — real implementation using expo-av.
+ * Voice Service — real implementation using expo-audio.
  *
- * Recording  → expo-av Audio.Recording
+ * Recording  → expo-audio AudioRecorder
  * STT        → OpenAI Whisper API
- * TTS        → OpenAI TTS API + expo-av Audio.Sound playback
+ * TTS        → OpenAI TTS API + expo-audio AudioPlayer playback
  */
 
-import { Audio } from 'expo-av';
+import {
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  createAudioPlayer,
+  RecordingPresets,
+  AudioModule,
+} from 'expo-audio';
 import { Platform } from 'react-native';
 import { apiFetch } from '../ai/apiFetch';
 
@@ -25,46 +31,48 @@ const VOICE_MAP: Record<string, string> = {
   balanced: 'nova',       // 中性、自然
 };
 
-let currentRecording: Audio.Recording | null = null;
+let currentRecorder: InstanceType<typeof AudioModule.AudioRecorder> | null = null;
+let currentPlayer: ReturnType<typeof createAudioPlayer> | null = null;
 
 // --- Recording ---
 
 export async function startRecording(): Promise<void> {
   // Request permissions
-  const { status } = await Audio.requestPermissionsAsync();
+  const { status } = await requestRecordingPermissionsAsync();
   if (status !== 'granted') {
     throw new Error('Microphone permission denied');
   }
 
   // Configure audio mode for recording
-  await Audio.setAudioModeAsync({
-    allowsRecordingIOS: true,
-    playsInSilentModeIOS: true,
+  await setAudioModeAsync({
+    allowsRecording: true,
+    playsInSilentMode: true,
   });
 
-  const { recording } = await Audio.Recording.createAsync(
-    Audio.RecordingOptionsPresets.HIGH_QUALITY,
-  );
-  currentRecording = recording;
+  // Create and prepare recorder
+  const recorder = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
+  await recorder.prepareToRecordAsync();
+  recorder.record();
+  currentRecorder = recorder;
 }
 
 export async function stopRecording(): Promise<string | null> {
-  if (!currentRecording) return null;
+  if (!currentRecorder) return null;
 
   try {
-    await currentRecording.stopAndUnloadAsync();
-    const uri = currentRecording.getURI();
-    currentRecording = null;
+    await currentRecorder.stop();
+    const uri = currentRecorder.uri;
+    currentRecorder = null;
 
     // Restore audio mode for playback
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
+    await setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
     });
 
     return uri;
   } catch (e) {
-    currentRecording = null;
+    currentRecorder = null;
     throw e;
   }
 }
@@ -117,7 +125,7 @@ export async function transcribeAudio(
 export async function synthesizeSpeech(
   text: string,
   config: VoiceServiceConfig,
-): Promise<Audio.Sound> {
+): Promise<ReturnType<typeof createAudioPlayer>> {
   const voice = config.conversationStyle
     ? (VOICE_MAP[config.conversationStyle] || 'shimmer')
     : 'shimmer';
@@ -141,13 +149,20 @@ export async function synthesizeSpeech(
     throw new Error(`TTS API error: ${res.status} - ${err}`);
   }
 
-  // Convert response to a local file URI for playback
+  // Convert response to base64 data URI for playback
   const arrayBuffer = await res.arrayBuffer();
   const base64 = arrayBufferToBase64(arrayBuffer);
   const dataUri = `data:audio/mp3;base64,${base64}`;
 
-  const { sound } = await Audio.Sound.createAsync({ uri: dataUri });
-  return sound;
+  // Clean up previous player if any
+  if (currentPlayer) {
+    try { currentPlayer.remove(); } catch {}
+    currentPlayer = null;
+  }
+
+  const player = createAudioPlayer(dataUri);
+  currentPlayer = player;
+  return player;
 }
 
 // --- Helpers ---
@@ -158,19 +173,21 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  // React Native global btoa
   if (typeof btoa === 'function') {
     return btoa(binary);
   }
-  // Fallback for environments without btoa
   return Buffer.from(buffer).toString('base64');
 }
 
 // --- Cleanup ---
 
 export function cleanup() {
-  if (currentRecording) {
-    currentRecording.stopAndUnloadAsync().catch(() => {});
-    currentRecording = null;
+  if (currentRecorder) {
+    try { currentRecorder.stop(); } catch {}
+    currentRecorder = null;
+  }
+  if (currentPlayer) {
+    try { currentPlayer.remove(); } catch {}
+    currentPlayer = null;
   }
 }

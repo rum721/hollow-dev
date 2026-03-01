@@ -4,7 +4,8 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useMemoryStore } from '../store/useMemoryStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { sendChatMessage } from '../services/ai/aiRouter';
-import { extractMemories } from '../services/ai/memoryExtractor';
+import { shouldExtractMemory, extractMemories } from '../services/ai/memoryExtractor';
+import { mergeExtractionResult } from '../services/ai/profileMerger';
 import { getRelevantKnowledge } from '../services/knowledge/knowledgeRetriever';
 import { getEffectiveLocale } from '../i18n';
 import type { ChatMessage } from '../services/ai/types';
@@ -72,19 +73,35 @@ export function useStreaming() {
           onToken: (token: string) => appendStreamToken(token),
           onComplete: (fullResponse: string) => {
             finalizeAssistantMessage(sessionId, fullResponse);
-            // Async memory extraction — runs every 5 user messages to reduce API cost
-            const allMsgs = useChatStore.getState().messages[sessionId] ?? [];
-            const userMsgCount = allMsgs.filter((m) => m.role === 'user').length;
-            if (userMsgCount % 5 === 0) {
-              const chatMsgs: ChatMessage[] = allMsgs.slice(-10).map((m) => ({
+
+            // ── V2 Smart memory extraction ──
+            const chatState = useChatStore.getState();
+            const allMsgs = chatState.messages[sessionId] ?? [];
+            const lastIdx = chatState.getLastExtractionIndex(sessionId);
+
+            if (shouldExtractMemory(allMsgs, lastIdx)) {
+              const chatMsgs: ChatMessage[] = allMsgs.slice(lastIdx).map((m) => ({
                 role: m.role as 'user' | 'assistant',
                 content: m.content,
               }));
-              extractMemories(chatMsgs, settings.selectedModel, settings.apiKeys).then((memories) => {
-                if (memories.length > 0) {
-                  useMemoryStore.getState().addMemories(memories);
-                }
-              }).catch(() => {});
+              const existingProfiles = useMemoryStore.getState().profiles;
+
+              extractMemories(chatMsgs, existingProfiles, settings.selectedModel, settings.apiKeys)
+                .then((result) => {
+                  if (result) {
+                    mergeExtractionResult(result, sessionId).then(() => {
+                      // Refresh memory store after merge
+                      useMemoryStore.getState().invalidateCache();
+                      useMemoryStore.getState().loadAll();
+                    }).catch(() => {});
+                  }
+                  // Update extraction index regardless of result
+                  useChatStore.getState().setLastExtractionIndex(sessionId, allMsgs.length);
+                })
+                .catch(() => {
+                  // Still update index to prevent retrying the same messages
+                  useChatStore.getState().setLastExtractionIndex(sessionId, allMsgs.length);
+                });
             }
           },
           onError: (error: Error) => {

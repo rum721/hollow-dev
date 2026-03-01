@@ -28,7 +28,9 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,11 +43,12 @@
       "expo-sqlite",
       "expo-secure-store",
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "Hollow 需要使用麦克风进行语音对话"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

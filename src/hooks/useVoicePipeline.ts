@@ -139,21 +139,22 @@ export function useVoicePipeline(sessionId: string) {
       // Step 3: TTS — synthesize and play the AI response
       setState('speaking');
       try {
-        const sound = await voiceService.synthesizeSpeech(fullResponse, {
+        const player = await voiceService.synthesizeSpeech(fullResponse, {
           openaiApiKey: openaiKey,
           conversationStyle: settings.conversationStyle,
         });
-        soundRef.current = sound;
+        soundRef.current = player;
 
-        sound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.didJustFinish) {
+        // Listen for playback completion via expo-audio events
+        player.addListener('playbackStatusUpdate', (status: any) => {
+          if (status.playing === false && status.currentTime > 0 && status.currentTime >= (status.duration || 0) - 0.1) {
             setState('idle');
-            sound.unloadAsync();
+            try { player.remove(); } catch {}
             soundRef.current = null;
           }
         });
 
-        await sound.playAsync();
+        player.play();
       } catch (ttsError: any) {
         // TTS failed, but the text response was already saved — just go idle
         console.warn('TTS failed:', ttsError.message);
@@ -174,8 +175,8 @@ export function useVoicePipeline(sessionId: string) {
 
   const cancel = useCallback(async () => {
     if (soundRef.current) {
-      await soundRef.current.stopAsync().catch(() => {});
-      await soundRef.current.unloadAsync().catch(() => {});
+      try { soundRef.current.pause(); } catch {}
+      try { soundRef.current.remove(); } catch {}
       soundRef.current = null;
     }
     voiceService.cleanup();

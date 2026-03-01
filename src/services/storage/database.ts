@@ -66,6 +66,45 @@ async function initSchema(database: any): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
     CREATE INDEX IF NOT EXISTS idx_memory_category ON memory_entries(category);
+
+    -- V2 Memory Architecture: three-layer tables
+    CREATE TABLE IF NOT EXISTS core_profiles (
+      id TEXT PRIMARY KEY,
+      key TEXT UNIQUE NOT NULL,
+      category TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      confidence REAL DEFAULT 0.5,
+      mention_count INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS episodic_memories (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      content TEXT NOT NULL,
+      emotion TEXT DEFAULT 'neutral',
+      intensity INTEGER DEFAULT 3,
+      event_date TEXT,
+      decay_weight REAL DEFAULT 1.0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS session_summaries (
+      id TEXT PRIMARY KEY,
+      session_id TEXT UNIQUE NOT NULL,
+      summary TEXT NOT NULL,
+      key_topics TEXT,
+      mood TEXT DEFAULT 'neutral',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_profile_category ON core_profiles(category);
+    CREATE INDEX IF NOT EXISTS idx_profile_key ON core_profiles(key);
+    CREATE INDEX IF NOT EXISTS idx_episode_date ON episodic_memories(event_date);
+    CREATE INDEX IF NOT EXISTS idx_episode_emotion ON episodic_memories(emotion);
+    CREATE INDEX IF NOT EXISTS idx_summary_session ON session_summaries(session_id);
   `);
 
   // Migration: add manus_task_id column to sessions (for Manus multi-turn)
@@ -73,6 +112,48 @@ async function initSchema(database: any): Promise<void> {
     await database.execAsync(`ALTER TABLE sessions ADD COLUMN manus_task_id TEXT`);
   } catch {
     // Column already exists — this is expected after first migration
+  }
+
+  // Migration: migrate memory_entries → core_profiles + episodic_memories (idempotent)
+  await migrateMemoryEntries(database);
+}
+
+async function migrateMemoryEntries(database: any): Promise<void> {
+  try {
+    // Check if migration already done (core_profiles has data)
+    const profileCount = (await database.getFirstAsync(
+      'SELECT COUNT(*) as cnt FROM core_profiles',
+    )) as { cnt: number } | null;
+    if (profileCount && profileCount.cnt > 0) return;
+
+    // Check if there's anything to migrate
+    const entryCount = (await database.getFirstAsync(
+      'SELECT COUNT(*) as cnt FROM memory_entries',
+    )) as { cnt: number } | null;
+    if (!entryCount || entryCount.cnt === 0) return;
+
+    // Migrate people + preferences → core_profiles
+    await database.execAsync(`
+      INSERT OR IGNORE INTO core_profiles (id, key, category, title, content, confidence, mention_count)
+      SELECT id,
+             LOWER(REPLACE(REPLACE(REPLACE(title, ' ', '_'), '''', ''), '"', '')),
+             CASE WHEN category = 'people' THEN 'relationship' ELSE 'preference' END,
+             title, content, 0.7, 1
+      FROM memory_entries
+      WHERE category IN ('people', 'preferences');
+    `);
+
+    // Migrate events + emotions → episodic_memories
+    await database.execAsync(`
+      INSERT OR IGNORE INTO episodic_memories (id, session_id, content, emotion, intensity, event_date, decay_weight)
+      SELECT id, NULL, title || ': ' || content,
+             CASE WHEN category = 'emotions' THEN 'mixed' ELSE 'neutral' END,
+             3, created_at, 1.0
+      FROM memory_entries
+      WHERE category IN ('events', 'emotions');
+    `);
+  } catch {
+    // Migration failure is non-fatal — old data remains accessible
   }
 }
 

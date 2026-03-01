@@ -10,6 +10,7 @@ interface ChatState {
   isStreaming: boolean;
   streamingText: string;
   isLoaded: boolean;
+  extractionIndices: Record<string, number>;
 
   loadSessions: () => Promise<void>;
   loadMessages: (sessionId: string) => Promise<void>;
@@ -26,6 +27,8 @@ interface ChatState {
   restoreSession: (id: string) => void;
   getManusTaskId: (sessionId: string) => string | undefined;
   setManusTaskId: (sessionId: string, taskId: string) => void;
+  getLastExtractionIndex: (sessionId: string) => number;
+  setLastExtractionIndex: (sessionId: string, index: number) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -35,6 +38,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isStreaming: false,
   streamingText: '',
   isLoaded: false,
+  extractionIndices: {},
 
   loadSessions: async () => {
     try {
@@ -224,5 +228,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
     // Persist to database
     conversationRepo.updateManusTaskId(sessionId, taskId).catch(() => {});
+  },
+
+  // ── Memory extraction tracking (in-memory, resets per app restart) ──
+  getLastExtractionIndex: (sessionId) => {
+    return get().extractionIndices[sessionId] ?? 0;
+  },
+
+  setLastExtractionIndex: (sessionId, index) => {
+    set((state) => ({
+      extractionIndices: { ...state.extractionIndices, [sessionId]: index },
+    }));
   },
 }));

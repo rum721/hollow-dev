@@ -6,6 +6,9 @@ import { WelcomeScreen } from '../screens/welcome/WelcomeScreen';
 import { OnboardingPrivacyScreen } from '../screens/welcome/OnboardingPrivacyScreen';
 import { OnboardingNicknameScreen } from '../screens/welcome/OnboardingNicknameScreen';
 import { OnboardingStyleScreen } from '../screens/welcome/OnboardingStyleScreen';
+import { OnboardingProfileScreen } from '../screens/welcome/OnboardingProfileScreen';
+import { QuickProfileScreen } from '../screens/welcome/QuickProfileScreen';
+import { MemoryImportScreen } from '../screens/settings/MemoryImportScreen';
 import { MainTabNavigator } from './MainTabNavigator';
 import { runAutoDestruct } from '../services/storage/autoDestruct';
 import { colors } from '../theme';
@@ -38,6 +41,9 @@ export function RootNavigator() {
           <Stack.Screen name="OnboardingPrivacy" component={OnboardingPrivacyScreen} />
           <Stack.Screen name="OnboardingNickname" component={OnboardingNicknameScreen} />
           <Stack.Screen name="OnboardingStyle" component={OnboardingStyleScreen} />
+          <Stack.Screen name="OnboardingProfile" component={OnboardingProfileScreen} />
+          <Stack.Screen name="QuickProfile" component={QuickProfileScreen} />
+          <Stack.Screen name="OnboardingImport" component={MemoryImportScreen} />
         </>
       ) : (
         <>

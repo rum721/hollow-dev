@@ -6,6 +6,9 @@ export type RootStackParamList = {
   OnboardingPrivacy: undefined;
   OnboardingNickname: undefined;
   OnboardingStyle: undefined;
+  OnboardingProfile: undefined;
+  QuickProfile: undefined;
+  OnboardingImport: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList>;
 };
 
@@ -31,4 +34,5 @@ export type SettingsStackParamList = {
   Subscription: undefined;
   PrivacyPolicy: undefined;
   TermsOfService: undefined;
+  MemoryImport: undefined;
 };

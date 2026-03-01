@@ -15,6 +15,8 @@ import { useResponsive } from '../../hooks/useResponsive';
 import { MODEL_LIST, getModelInfo } from '../../services/ai/models';
 import { validateApiKey } from '../../services/ai/aiRouter';
 import { colors, spacing, borderRadius, fontSize } from '../../theme';
+import { useMemoryStore } from '../../store/useMemoryStore';
+import { exportMemoryToFile } from '../../services/memory/memoryExporter';
 import { TIER_LABELS, TIER_CONFIG } from '../../types/subscription';
 import type { SubscriptionTier } from '../../types/subscription';
 import type { LanguageSetting, ConversationStyle, ModelInfo, AutoDestructDays } from '../../types/settings';
@@ -113,6 +115,20 @@ export function SettingsScreen() {
     useSubscriptionStore.setState({ todayUsage: 0 });
   };
 
+  const handleExportMemory = async () => {
+    try {
+      const { profiles, episodes, recentSummaries } = useMemoryStore.getState();
+      const nickname = store.nickname || 'User';
+      await exportMemoryToFile(profiles, episodes, recentSummaries, nickname);
+    } catch (error) {
+      if (Platform.OS === 'web') {
+        window.alert(t('memory.exportFailed') || 'Export failed');
+      } else {
+        Alert.alert(t('common.warning'), t('memory.exportFailed') || 'Export failed');
+      }
+    }
+  };
+
   const handleErase = () => {
     if (Platform.OS === 'web') {
       if (window.confirm(t('settings.eraseConfirm'))) { /* TODO */ }
@@ -199,6 +215,8 @@ export function SettingsScreen() {
               value={autoDestructLabel}
               onPress={cycleAutoDestruct}
             />
+            <SettingsRow icon="download" label={t('memory.export')} onPress={handleExportMemory} />
+            <SettingsRow icon="upload" label={t('memory.import')} showArrow onPress={() => navigation.navigate('MemoryImport')} />
             <SettingsRow icon="alert-triangle" label={t('settings.eraseAll')} danger onPress={handleErase} />
           </SettingsGroup>
 

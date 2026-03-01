@@ -51,30 +51,13 @@ export function OnboardingStyleScreen() {
 
   const [starting, setStarting] = useState(false);
 
-  const handleStart = async () => {
+  const handleStart = () => {
     if (starting) return; // prevent double-tap
     setStarting(true);
-    try {
-      setConversationStyle(selected);
-
-      // Determine effective locale for the greeting
-      const langSetting = useSettingsStore.getState().language;
-      const effectiveLocale = getEffectiveLocale(langSetting);
-      const nickname = useSettingsStore.getState().nickname;
-
-      // Build the personalized greeting
-      const greeting = buildGreeting(selected, nickname, effectiveLocale);
-
-      // Create the first session and add the AI greeting message
-      const sessionId = await useChatStore.getState().createSession();
-      useChatStore.getState().finalizeAssistantMessage(sessionId, greeting);
-
-      // Complete onboarding — triggers navigation to MainTabs
-      setOnboarded(true);
-    } catch (e: any) {
-      console.error('Onboarding start failed:', e);
-      setStarting(false);
-    }
+    setConversationStyle(selected);
+    // Navigate to the profile step (where user can fill profile, import, or skip)
+    navigation.navigate('OnboardingProfile');
+    setStarting(false);
   };
 
   return (
