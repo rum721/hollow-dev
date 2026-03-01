@@ -26,7 +26,51 @@ export interface ExtractionResult {
   episodes: EpisodeExtract[];
 }
 
-// ── Smart trigger logic ──
+/** Structured result with status for caller feedback */
+export type ExtractionStatus =
+  | { status: 'success'; result: ExtractionResult }
+  | { status: 'no_info' }        // AI determined no valuable info
+  | { status: 'skipped'; reason: string }  // Skipped (no model, no key, etc.)
+  | { status: 'error'; error: string };    // API or parse error
+
+// ── Smart trigger logic with quality scoring ──
+
+/**
+ * Score a single message for information density (0–10 scale).
+ * Higher score = more likely to contain memorable information.
+ */
+function scoreMessageQuality(content: string): number {
+  let score = 0;
+  const len = content.length;
+
+  // Length-based: very short messages are low-info
+  if (len < 5) return 0;
+  if (len >= 20) score += 1;
+  if (len >= 80) score += 1;
+
+  // Identity signals (who the user is)
+  if (/我(叫|是|在|住|来自|今年)/.test(content)) score += 3;
+
+  // Relationship signals (people in their life)
+  if (/他|她|我(男|女)?(朋友|同事|家人|爸|妈|哥|姐|弟|妹|老公|老婆|对象|老板)/.test(content)) score += 2;
+
+  // Preference/opinion signals
+  if (/我(喜欢|讨厌|害怕|想要|希望|不想|不喜欢|受不了|最爱)/.test(content)) score += 2;
+
+  // Temporal event signals (something happened)
+  if (/最近|今天|昨天|上周|上个月|刚刚|前几天|去年/.test(content)) score += 2;
+
+  // Emotional signals (strong feelings)
+  if (/心情|感觉|觉得|烦|开心|难过|焦虑|崩溃|压力|失眠|哭|生气|委屈|孤独|迷茫/.test(content)) score += 2;
+
+  // Work/study signals
+  if (/工作|公司|项目|学校|上班|加班|面试|跳槽|辞职|考试/.test(content)) score += 1;
+
+  // English equivalents
+  if (/\b(my|i am|i'm|i have|i work|i live|i like|i hate|i feel|i think|recently|today|yesterday)\b/i.test(content)) score += 2;
+
+  return Math.min(10, score);
+}
 
 export function shouldExtractMemory(
   messages: { role: string; content: string }[],
@@ -35,26 +79,27 @@ export function shouldExtractMemory(
   const newMessages = messages.slice(lastExtractionIndex);
   const userMessages = newMessages.filter((m) => m.role === 'user');
 
-  // At least 3 new user messages
-  if (userMessages.length < 3) return false;
+  // At least 2 new user messages before even considering
+  if (userMessages.length < 2) return false;
 
-  // Force extraction at 8+ user messages
+  // Force extraction at 8+ user messages regardless of quality
   if (userMessages.length >= 8) return true;
 
-  // Check for high-info-density signal words
-  const signalPatterns = [
-    /我(叫|是|在|住|喜欢|讨厌|害怕)/,
-    /最近|今天|昨天|上周/,
-    /他|她|我(男|女)?(朋友|同事|家人|爸|妈|哥|姐)/,
-    /心情|感觉|觉得|烦|开心|难过|焦虑/,
-    /工作|公司|项目|学校/,
-  ];
-
-  const hasSignal = userMessages.some((m) =>
-    signalPatterns.some((p) => p.test(m.content)),
+  // Quality-based scoring: sum all new user message scores
+  const totalScore = userMessages.reduce(
+    (sum, m) => sum + scoreMessageQuality(m.content), 0,
   );
 
-  return userMessages.length >= 5 || hasSignal;
+  // High quality threshold: score >= 6 with 2+ messages
+  if (totalScore >= 6 && userMessages.length >= 2) return true;
+
+  // Medium quality: score >= 4 with 3+ messages
+  if (totalScore >= 4 && userMessages.length >= 3) return true;
+
+  // Low quality: need 5+ messages with any score > 0
+  if (totalScore > 0 && userMessages.length >= 5) return true;
+
+  return false;
 }
 
 // ── Extraction prompt builder ──
@@ -109,9 +154,9 @@ export async function extractMemories(
   existingProfiles: CoreProfile[],
   selectedModel: string,
   apiKeys: Record<string, string>,
-): Promise<ExtractionResult | null> {
+): Promise<ExtractionStatus> {
   const modelInfo = getModelInfo(selectedModel);
-  if (!modelInfo) return null;
+  if (!modelInfo) return { status: 'skipped', reason: 'unknown_model' };
 
   // Manus doesn't support /chat/completions — fall back
   if (modelInfo.provider === 'manus') {
@@ -122,11 +167,11 @@ export async function extractMemories(
         return extractWithModel(messages, existingProfiles, fbInfo, apiKeys[fbInfo.apiKeyField]);
       }
     }
-    return null;
+    return { status: 'skipped', reason: 'no_fallback_key' };
   }
 
   const apiKey = apiKeys[modelInfo.apiKeyField];
-  if (!apiKey) return null;
+  if (!apiKey) return { status: 'skipped', reason: 'no_api_key' };
 
   return extractWithModel(messages, existingProfiles, modelInfo, apiKey);
 }
@@ -136,7 +181,7 @@ async function extractWithModel(
   existingProfiles: CoreProfile[],
   modelInfo: { provider: string; apiModelId: string },
   apiKey: string,
-): Promise<ExtractionResult | null> {
+): Promise<ExtractionStatus> {
   const recentMessages = messages.slice(-10);
   const conversationText = recentMessages
     .map((m) => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content}`)
@@ -148,6 +193,7 @@ async function extractWithModel(
 
   const systemPrompt = buildExtractionPrompt(existingProfiles);
   let result = '';
+  let apiErrorMsg: string | null = null;
 
   try {
     if (modelInfo.provider === 'anthropic') {
@@ -159,7 +205,7 @@ async function extractWithModel(
         {
           onToken: (token) => { result += token; },
           onComplete: (full) => { result = full; },
-          onError: () => {},
+          onError: (err) => { apiErrorMsg = err.message; },
         },
       );
     } else {
@@ -173,14 +219,20 @@ async function extractWithModel(
         {
           onToken: (token) => { result += token; },
           onComplete: (full) => { result = full; },
-          onError: () => {},
+          onError: (err) => { apiErrorMsg = err.message; },
         },
       );
     }
 
-    return parseExtractionResult(result);
-  } catch {
-    return null;
+    if (apiErrorMsg) {
+      return { status: 'error', error: apiErrorMsg };
+    }
+
+    const parsed = parseExtractionResult(result);
+    if (!parsed) return { status: 'no_info' };
+    return { status: 'success', result: parsed };
+  } catch (e) {
+    return { status: 'error', error: e instanceof Error ? e.message : String(e) };
   }
 }
 

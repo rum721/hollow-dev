@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useMemoryStore } from '../store/useMemoryStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { sendChatMessage } from '../services/ai/aiRouter';
 import { getEffectiveLocale } from '../i18n';
+import { truncateMessages } from '../services/ai/messageTruncator';
 import * as voiceService from '../services/voice/voiceService';
 import { VoiceError } from '../services/voice/voiceService';
 import type { ChatMessage } from '../services/ai/types';
@@ -111,10 +112,12 @@ export function useVoicePipeline(sessionId: string) {
       subscription.incrementUsage();
 
       const allMessages = useChatStore.getState().messages[sessionId] ?? [];
-      const chatMessages: ChatMessage[] = allMessages.slice(-20).map((m) => ({
+      const rawMessages: ChatMessage[] = allMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       }));
+      // Dynamic truncation by token budget
+      const chatMessages = truncateMessages(rawMessages, 8000);
       const recentUserMessages = chatMessages
         .filter((m) => m.role === 'user')
         .slice(-3)
@@ -200,6 +203,20 @@ export function useVoicePipeline(sessionId: string) {
     }
     voiceService.cleanup();
     setState('idle');
+  }, []);
+
+  // ── Auto-cleanup on unmount ──
+  // Ensures recorder/player are released even if the consumer
+  // component forgets to call cancel() in its own cleanup.
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        try { soundRef.current.pause(); } catch {}
+        try { soundRef.current.remove(); } catch {}
+        soundRef.current = null;
+      }
+      voiceService.cleanup();
+    };
   }, []);
 
   return {

@@ -8,12 +8,7 @@ import { ResponsiveLayout } from './src/components/common/ResponsiveLayout';
 import { BiometricLockScreen } from './src/components/common/BiometricLockScreen';
 import { useAppFonts } from './src/hooks/useFonts';
 import { useBiometricLock } from './src/hooks/useBiometricLock';
-import { useAuthStore } from './src/store/useAuthStore';
-import { useSettingsStore } from './src/store/useSettingsStore';
-import { useChatStore } from './src/store/useChatStore';
-import { useMemoryStore } from './src/store/useMemoryStore';
-import { useSubscriptionStore } from './src/store/useSubscriptionStore';
-import { initEncryption } from './src/services/storage/encryption';
+import { initializeApp } from './src/services/initApp';
 import { colors } from './src/theme';
 import { fonts } from './src/theme/typography';
 
@@ -60,20 +55,12 @@ export default function App() {
   const [dataReady, setDataReady] = useState(false);
 
   useEffect(() => {
-    async function init() {
-      // Initialize encryption key before any DB operations that need decrypt
-      await initEncryption();
-
-      await Promise.all([
-        useAuthStore.getState().loadAuth(),
-        useSettingsStore.getState().loadSettings(),
-        useChatStore.getState().loadSessions(),
-        useMemoryStore.getState().loadMemories(),
-        useSubscriptionStore.getState().loadSubscription(),
-      ]);
-      setDataReady(true);
-    }
-    init();
+    // Unified initialization: encryption → database → stores
+    // Includes timeout (15s), retry (2 attempts), and error logging
+    initializeApp().then((ok) => {
+      if (ok) setDataReady(true);
+      else console.error('[Hollow] App initialization failed after retries');
+    });
   }, []);
 
   if (!fontsLoaded || !dataReady) {

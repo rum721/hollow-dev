@@ -8,6 +8,7 @@ import { shouldExtractMemory, extractMemories } from '../services/ai/memoryExtra
 import { mergeExtractionResult } from '../services/ai/profileMerger';
 import { getRelevantKnowledge } from '../services/knowledge/knowledgeRetriever';
 import { getEffectiveLocale } from '../i18n';
+import { truncateMessages } from '../services/ai/messageTruncator';
 import { logError } from '../utils/errorLogger';
 import type { ChatMessage } from '../services/ai/types';
 
@@ -33,10 +34,12 @@ export function useStreaming() {
     subscription.incrementUsage();
 
     const allMessages = useChatStore.getState().messages[sessionId] ?? [];
-    const chatMessages: ChatMessage[] = allMessages.slice(-20).map((m) => ({
+    const rawMessages: ChatMessage[] = allMessages.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }));
+    // Dynamic truncation by token budget instead of fixed slice(-20)
+    const chatMessages = truncateMessages(rawMessages, 8000);
 
     // Extract recent user messages for memory relevance matching
     const recentUserMessages = chatMessages
@@ -88,13 +91,15 @@ export function useStreaming() {
               const existingProfiles = useMemoryStore.getState().profiles;
 
               extractMemories(chatMsgs, existingProfiles, settings.selectedModel, settings.apiKeys)
-                .then((result) => {
-                  if (result) {
-                    mergeExtractionResult(result, sessionId).then(() => {
+                .then((extraction) => {
+                  if (extraction.status === 'success') {
+                    mergeExtractionResult(extraction.result, sessionId).then(() => {
                       // Refresh memory store after merge
                       useMemoryStore.getState().invalidateCache();
                       useMemoryStore.getState().loadAll();
                     }).catch(logError('memory', 'mergeExtraction'));
+                  } else if (extraction.status === 'error') {
+                    logError('memory', 'extractMemories')(new Error(extraction.error));
                   }
                   // Update extraction index regardless of result
                   useChatStore.getState().setLastExtractionIndex(sessionId, allMsgs.length);
