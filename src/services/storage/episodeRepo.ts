@@ -46,6 +46,49 @@ export async function deleteEpisode(id: string): Promise<void> {
 }
 
 /**
+ * Check if a similar episode already exists for the given date.
+ * Uses keyword overlap to detect semantic duplicates like
+ * "想念安安" vs "用户在想念他的朋友安安".
+ */
+export async function findSimilarEpisode(
+  content: string,
+  eventDate: string,
+  threshold: number = 0.4,
+): Promise<boolean> {
+  const db = await getDatabase();
+  const rows = (await db.getAllAsync(
+    'SELECT content FROM episodic_memories WHERE event_date = ?',
+    [eventDate],
+  )) as { content: string }[];
+
+  if (rows.length === 0) return false;
+
+  const inputTokens = extractTokens(content);
+  if (inputTokens.length === 0) return false;
+
+  for (const row of rows) {
+    const existingContent = await decryptText(row.content);
+    const existingTokens = extractTokens(existingContent);
+    if (existingTokens.length === 0) continue;
+
+    // Jaccard-like overlap
+    const intersection = inputTokens.filter((t) => existingTokens.includes(t)).length;
+    const union = new Set([...inputTokens, ...existingTokens]).size;
+    if (union > 0 && intersection / union >= threshold) return true;
+  }
+
+  return false;
+}
+
+/** Extract comparison tokens (Chinese chars + English words) */
+function extractTokens(text: string): string[] {
+  const lower = text.toLowerCase();
+  const words = lower.match(/[a-z0-9]+/g) || [];
+  const chars = lower.match(/[\u4e00-\u9fff]/g) || [];
+  return [...new Set([...words, ...chars])].filter((t) => t.length > 0);
+}
+
+/**
  * Batch update decay weights for all episodic memories.
  * Formula: decayWeight = e^(-λ * daysSinceCreation)
  * λ = 0.02 (35-day half-life), halved for high-intensity emotions.

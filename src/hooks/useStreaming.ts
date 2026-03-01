@@ -14,6 +14,7 @@ import type { ChatMessage } from '../services/ai/types';
 
 export function useStreaming() {
   const abortRef = useRef<AbortController | null>(null);
+  const lastExtractionTimeRef = useRef<number>(0);
 
   const sendMessage = useCallback(async (sessionId: string, userText: string) => {
     const { addUserMessage, appendStreamToken, finalizeAssistantMessage, setStreaming } =
@@ -78,12 +79,14 @@ export function useStreaming() {
           onComplete: (fullResponse: string) => {
             finalizeAssistantMessage(sessionId, fullResponse);
 
-            // ── V2 Smart memory extraction ──
+            // ── V2 Smart memory extraction with timing-aware trigger ──
             const chatState = useChatStore.getState();
             const allMsgs = chatState.messages[sessionId] ?? [];
             const lastIdx = chatState.getLastExtractionIndex(sessionId);
 
-            if (shouldExtractMemory(allMsgs, lastIdx)) {
+            if (shouldExtractMemory(allMsgs, lastIdx, lastExtractionTimeRef.current)) {
+              lastExtractionTimeRef.current = Date.now();
+
               const chatMsgs: ChatMessage[] = allMsgs.slice(lastIdx).map((m) => ({
                 role: m.role as 'user' | 'assistant',
                 content: m.content,

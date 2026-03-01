@@ -232,20 +232,56 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
     return context.trim();
   },
 
-  // ── Legacy context builders ──
+  // ── Formatted context builders (optimized for AI comprehension) ──
   getFormattedContext: () => {
-    const { memories } = get();
-    if (memories.length === 0) return '';
-    const grouped: Record<string, MemoryEntry[]> = {};
-    memories.forEach((m) => {
-      if (!grouped[m.category]) grouped[m.category] = [];
-      grouped[m.category].push(m);
+    const { profiles, memories } = get();
+
+    // Common entry shape for formatting
+    type FormattedEntry = { category: string; title: string; content: string; importance: number; mentionCount: number };
+
+    // Prefer V2 profiles if available, fall back to legacy
+    const allEntries: FormattedEntry[] = profiles.length > 0
+      ? profiles.map((p) => ({ category: p.category, title: p.title, content: p.content, importance: 3, mentionCount: p.mentionCount }))
+      : memories.map((m) => ({ category: m.category, title: m.title, content: m.content, importance: 3, mentionCount: 1 }));
+
+    if (allEntries.length === 0) return '';
+
+    // Category labels for display (Chinese, ordered)
+    const CATEGORY_LABELS: Record<string, string> = {
+      identity: '\u57FA\u672C\u4FE1\u606F',      // 基本信息
+      relationship: '\u91CD\u8981\u7684\u4EBA',    // 重要的人
+      preference: '\u504F\u597D\u4E60\u60EF',      // 偏好习惯
+      trait: '\u6027\u683C\u7279\u70B9',           // 性格特点
+      event: '\u8FD1\u671F\u4E8B\u4EF6',          // 近期事件
+      // Legacy category mappings
+      people: '\u91CD\u8981\u7684\u4EBA',
+      events: '\u8FD1\u671F\u4E8B\u4EF6',
+      emotions: '\u60C5\u7EEA\u4F53\u9A8C',       // 情绪体验
+      preferences: '\u504F\u597D\u4E60\u60EF',
+    };
+
+    // Fixed display order
+    const ORDER = ['\u57FA\u672C\u4FE1\u606F', '\u6027\u683C\u7279\u70B9', '\u91CD\u8981\u7684\u4EBA', '\u504F\u597D\u4E60\u60EF', '\u8FD1\u671F\u4E8B\u4EF6', '\u60C5\u7EEA\u4F53\u9A8C'];
+
+    const grouped: Record<string, typeof allEntries> = {};
+    allEntries.forEach((e) => {
+      const label = CATEGORY_LABELS[e.category] || e.category;
+      if (!grouped[label]) grouped[label] = [];
+      grouped[label].push(e);
     });
+
     let ctx = '';
-    for (const [cat, entries] of Object.entries(grouped)) {
-      ctx += `\n## ${cat.charAt(0).toUpperCase() + cat.slice(1)}\n`;
-      entries.forEach((e) => { ctx += `- ${e.title}: ${e.content}\n`; });
+    for (const label of ORDER) {
+      const entries = grouped[label];
+      if (!entries || entries.length === 0) continue;
+      ctx += `\n### ${label}\n`;
+      // Sort by importance desc, then mention count desc
+      entries.sort((a, b) => (b.importance || 3) - (a.importance || 3) || (b.mentionCount || 1) - (a.mentionCount || 1));
+      entries.forEach((e) => {
+        ctx += `- ${e.title}: ${e.content}\n`;
+      });
     }
+
     return ctx.trim();
   },
 
