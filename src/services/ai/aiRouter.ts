@@ -162,10 +162,10 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
 
     const baseUrl = PROVIDER_BASE_URLS[modelInfo.provider];
     const isOpenAI = modelInfo.provider === 'openai';
-    // Only o-series models (o1, o3, o4-mini) need max_completion_tokens;
-    // GPT-5.x defaults to non-reasoning mode (reasoning_effort=none), uses max_tokens.
-    const isOSeriesReasoning = isOpenAI && /^o[1-9]/.test(modelInfo.apiModelId);
-    const tokenLimitKey = isOSeriesReasoning ? 'max_completion_tokens' : 'max_tokens';
+    // GPT-5.x and o-series both require max_completion_tokens (not max_tokens).
+    // Only GPT-4o/4o-mini still accept the legacy max_tokens parameter.
+    const isNewOpenAIModel = isOpenAI && (/^gpt-5/.test(modelInfo.apiModelId) || /^o[1-9]/.test(modelInfo.apiModelId));
+    const tokenLimitKey = isNewOpenAIModel ? 'max_completion_tokens' : 'max_tokens';
     const response = await apiFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {

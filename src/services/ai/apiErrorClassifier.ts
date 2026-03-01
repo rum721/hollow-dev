@@ -71,7 +71,12 @@ export function classifyApiError(status: number, body: string): ClassifiedError 
 
   // ── 400 Bad Request (sub-classify) ──
   if (status === 400) {
-    if (lower.includes('context_length') || lower.includes('too long') || lower.includes('maximum context') || lower.includes('token')) {
+    // Unsupported parameter (e.g., max_tokens on GPT-5.x) — specific check first
+    if (lower.includes('unsupported parameter') || lower.includes('unrecognized request argument')) {
+      return { code: 'UNKNOWN', message: '请求参数不兼容，请更新应用或切换模型', status };
+    }
+    // Context length exceeded — use specific keywords, NOT broad "token" match
+    if (lower.includes('context_length') || lower.includes('maximum context length') || lower.includes('too many tokens') || lower.includes('reduce the length')) {
       return { code: 'CONTEXT_TOO_LONG', message: '对话内容过长，请尝试开始新对话', status };
     }
     if (lower.includes('content_filter') || lower.includes('safety') || lower.includes('content_policy')) {

@@ -18,16 +18,21 @@ export async function streamOpenAICompatibleChat(
   signal?: AbortSignal,
 ): Promise<void> {
   try {
-    // OpenAI o-series reasoning models (o1, o3, o4-mini) require:
-    //   - "developer" role instead of "system" role
-    //   - "max_completion_tokens" instead of "max_tokens"
-    // GPT-5.x models default to reasoning_effort=none (non-reasoning mode),
-    // so they accept "system" role and "max_tokens" like standard models.
-    // GPT-4o and older models also use "system" and "max_tokens".
+    // OpenAI model compatibility matrix:
+    //
+    // | Model family | system role | token limit param          |
+    // |--------------|-------------|----------------------------|
+    // | GPT-4o/mini  | system      | max_tokens (legacy OK)     |
+    // | GPT-5.x      | system      | max_completion_tokens ONLY |
+    // | o-series     | developer   | max_completion_tokens ONLY |
+    //
+    // GPT-5.x does NOT accept max_tokens — returns 400 "Unsupported parameter".
+    // o-series requires both developer role AND max_completion_tokens.
     const isOpenAI = baseUrl.includes('api.openai.com');
     const isOSeriesReasoning = isOpenAI && /^o[1-9]/.test(model);
+    const isNewModel = isOpenAI && (/^gpt-5/.test(model) || /^o[1-9]/.test(model));
     const systemRole = isOSeriesReasoning ? 'developer' : 'system';
-    const tokenLimitKey = isOSeriesReasoning ? 'max_completion_tokens' : 'max_tokens';
+    const tokenLimitKey = isNewModel ? 'max_completion_tokens' : 'max_tokens';
 
     const fullMessages: ChatMessage[] = [
       { role: systemRole as ChatMessage['role'], content: systemPrompt },
