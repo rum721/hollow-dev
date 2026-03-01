@@ -6,6 +6,7 @@ import * as profileRepo from '../services/storage/profileRepo';
 import * as episodeRepo from '../services/storage/episodeRepo';
 import * as summaryRepo from '../services/storage/summaryRepo';
 import { expandWithSynonyms, extractKeywords, EMOTION_LABELS } from '../services/ai/synonymDict';
+import { logError } from '../utils/errorLogger';
 
 /** Cache TTL: 5 minutes */
 const CACHE_TTL = 300_000;
@@ -135,7 +136,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
     profileRepo.upsertProfile(profile).then(() => {
       get().invalidateCache();
       get().loadAll();
-    }).catch(() => {});
+    }).catch(logError('memory', 'upsertProfile'));
   },
 
   updateProfile: (id, updates) => {
@@ -144,18 +145,18 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
         p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p,
       ),
     }));
-    profileRepo.updateProfile(id, updates).catch(() => {});
+    profileRepo.updateProfile(id, updates).catch(logError('memory', 'updateProfile'));
   },
 
   deleteProfile: (id) => {
     set((state) => ({ profiles: state.profiles.filter((p) => p.id !== id) }));
-    profileRepo.deleteProfile(id).catch(() => {});
+    profileRepo.deleteProfile(id).catch(logError('memory', 'deleteProfile'));
   },
 
   // ── Episode operations ──
   deleteEpisode: (id) => {
     set((state) => ({ episodes: state.episodes.filter((e) => e.id !== id) }));
-    episodeRepo.deleteEpisode(id).catch(() => {});
+    episodeRepo.deleteEpisode(id).catch(logError('memory', 'deleteEpisode'));
   },
 
   // ── Legacy operations ──
@@ -163,7 +164,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
     const now = new Date().toISOString();
     const entry: MemoryEntry = { id: randomUUID(), category, title, content, createdAt: now, updatedAt: now };
     set((state) => ({ memories: [...state.memories, entry] }));
-    memoryRepo.insertMemory(entry).catch(() => {});
+    memoryRepo.insertMemory(entry).catch(logError('memory', 'insertLegacyMemory'));
   },
 
   addMemories: (entries) => {
@@ -173,7 +174,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       createdAt: now, updatedAt: now,
     }));
     set((state) => ({ memories: [...state.memories, ...newEntries] }));
-    memoryRepo.insertMemories(newEntries).catch(() => {});
+    memoryRepo.insertMemories(newEntries).catch(logError('memory', 'insertLegacyMemories'));
   },
 
   updateMemory: (id, updates) => {
@@ -182,12 +183,12 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
         m.id === id ? { ...m, ...updates, updatedAt: new Date().toISOString() } : m,
       ),
     }));
-    memoryRepo.updateMemory(id, updates).catch(() => {});
+    memoryRepo.updateMemory(id, updates).catch(logError('memory', 'updateLegacyMemory'));
   },
 
   deleteMemory: (id) => {
     set((state) => ({ memories: state.memories.filter((m) => m.id !== id) }));
-    memoryRepo.deleteMemory(id).catch(() => {});
+    memoryRepo.deleteMemory(id).catch(logError('memory', 'deleteLegacyMemory'));
   },
 
   // ── V2 context builder (three-layer) ──

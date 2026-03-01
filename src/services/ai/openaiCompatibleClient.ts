@@ -17,8 +17,17 @@ export async function streamOpenAICompatibleChat(
   signal?: AbortSignal,
 ): Promise<void> {
   try {
+    // OpenAI newer models (gpt-5.x, o1, o3, etc.) require:
+    //   - "developer" role instead of "system" role
+    //   - "max_completion_tokens" instead of "max_tokens"
+    // Older OpenAI models (gpt-4o, gpt-4o-mini) still use "system" and "max_tokens".
+    const isOpenAI = baseUrl.includes('api.openai.com');
+    const isNewOpenAIModel = isOpenAI && /^(gpt-5|o[1-9])/.test(model);
+    const systemRole = isNewOpenAIModel ? 'developer' : 'system';
+    const tokenLimitKey = isNewOpenAIModel ? 'max_completion_tokens' : 'max_tokens';
+
     const fullMessages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
+      { role: systemRole as ChatMessage['role'], content: systemPrompt },
       ...messages,
     ];
 
@@ -27,11 +36,6 @@ export async function streamOpenAICompatibleChat(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     };
-
-    // OpenAI newer models (gpt-5.x, o3, etc.) require max_completion_tokens
-    // instead of max_tokens. Other providers still use max_tokens.
-    const isOpenAI = baseUrl.includes('api.openai.com');
-    const tokenLimitKey = isOpenAI ? 'max_completion_tokens' : 'max_tokens';
 
     const reader = typeof ReadableStream !== 'undefined'
       ? await tryStreamingRequest() : null;

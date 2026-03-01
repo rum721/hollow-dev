@@ -1,5 +1,5 @@
 import { getDatabase } from './database';
-import { encryptSync, decryptSync } from './encryption';
+import { encryptText, decryptText } from './encryption';
 import type { Session, Message, SessionStatus } from '../../types/chat';
 
 // ─── Sessions ────────────────────────────────────────────
@@ -14,17 +14,17 @@ export async function getAllSessions(status: SessionStatus = 'active'): Promise<
     message_count: number; last_message: string | null;
     created_at: string; updated_at: string;
   }[];
-  return rows.map(toSession);
+  return Promise.all(rows.map(toSession));
 }
 
 export async function insertSession(session: Session): Promise<void> {
   const db = await getDatabase();
+  const encryptedLastMsg = session.lastMessage ? await encryptText(session.lastMessage) : null;
   await db.runAsync(
     `INSERT INTO sessions (id, title, session_number, status, message_count, last_message, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [session.id, session.title, session.sessionNumber, session.status,
-     session.messageCount ?? 0,
-     session.lastMessage ? encryptSync(session.lastMessage) : null,
+     session.messageCount ?? 0, encryptedLastMsg,
      session.createdAt, session.updatedAt],
   );
 }
@@ -41,10 +41,11 @@ export async function updateSessionLastMessage(
   id: string, lastMessage: string, messageCount: number,
 ): Promise<void> {
   const db = await getDatabase();
+  const encrypted = await encryptText(lastMessage);
   await db.runAsync(
     `UPDATE sessions SET last_message = ?, message_count = ?, updated_at = datetime("now"),
      last_message_at = datetime("now") WHERE id = ?`,
-    [encryptSync(lastMessage), messageCount, id],
+    [encrypted, messageCount, id],
   );
 }
 
@@ -99,15 +100,16 @@ export async function getMessagesForSession(sessionId: string): Promise<Message[
     content: string; model_used: string | null;
     token_count: number | null; created_at: string;
   }[];
-  return rows.map(toMessage);
+  return Promise.all(rows.map(toMessage));
 }
 
 export async function insertMessage(msg: Message): Promise<void> {
   const db = await getDatabase();
+  const encrypted = await encryptText(msg.content);
   await db.runAsync(
     `INSERT INTO messages (id, session_id, role, content, model_used, token_count, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [msg.id, msg.sessionId, msg.role, encryptSync(msg.content),
+    [msg.id, msg.sessionId, msg.role, encrypted,
      msg.metadata?.model ?? null, msg.metadata?.tokensUsed ?? null,
      msg.createdAt],
   );
@@ -115,26 +117,26 @@ export async function insertMessage(msg: Message): Promise<void> {
 
 // ─── Helpers ─────────────────────────────────────────────
 
-function toSession(row: any): Session {
+async function toSession(row: any): Promise<Session> {
   return {
     id: row.id,
     title: row.title,
     sessionNumber: row.session_number,
     status: row.status as SessionStatus,
     messageCount: row.message_count,
-    lastMessage: row.last_message ? decryptSync(row.last_message) : undefined,
+    lastMessage: row.last_message ? await decryptText(row.last_message) : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     manusTaskId: row.manus_task_id ?? undefined,
   };
 }
 
-function toMessage(row: any): Message {
+async function toMessage(row: any): Promise<Message> {
   return {
     id: row.id,
     sessionId: row.session_id,
     role: row.role as Message['role'],
-    content: decryptSync(row.content),
+    content: await decryptText(row.content),
     createdAt: row.created_at,
     metadata: row.model_used ? { model: row.model_used, tokensUsed: row.token_count ?? undefined } : undefined,
   };

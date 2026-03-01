@@ -1,6 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import { getDatabase } from './database';
-import { encryptSync, decryptSync } from './encryption';
+import { encryptText, decryptText } from './encryption';
 import type { SessionSummary } from '../../types/memory';
 
 export async function getRecentSummaries(limit: number = 5): Promise<SessionSummary[]> {
@@ -8,7 +8,7 @@ export async function getRecentSummaries(limit: number = 5): Promise<SessionSumm
   const rows = (await db.getAllAsync(
     'SELECT * FROM session_summaries ORDER BY created_at DESC LIMIT ?', [limit],
   )) as any[];
-  return rows.map(toSummary);
+  return Promise.all(rows.map(toSummary));
 }
 
 export async function getSummaryBySessionId(sessionId: string): Promise<SessionSummary | null> {
@@ -27,13 +27,14 @@ export async function insertSummary(summary: {
 }): Promise<void> {
   const db = await getDatabase();
   const id = randomUUID();
+  const encrypted = await encryptText(summary.summary);
   await db.runAsync(
     `INSERT OR IGNORE INTO session_summaries (id, session_id, summary, key_topics, mood) VALUES (?, ?, ?, ?, ?)`,
-    [id, summary.sessionId, encryptSync(summary.summary), JSON.stringify(summary.keyTopics), summary.mood],
+    [id, summary.sessionId, encrypted, JSON.stringify(summary.keyTopics), summary.mood],
   );
 }
 
-function toSummary(row: any): SessionSummary {
+async function toSummary(row: any): Promise<SessionSummary> {
   let keyTopics: string[] = [];
   try {
     keyTopics = row.key_topics ? JSON.parse(row.key_topics) : [];
@@ -44,7 +45,7 @@ function toSummary(row: any): SessionSummary {
   return {
     id: row.id,
     sessionId: row.session_id,
-    summary: decryptSync(row.summary),
+    summary: await decryptText(row.summary),
     keyTopics,
     mood: row.mood || 'neutral',
     createdAt: row.created_at,

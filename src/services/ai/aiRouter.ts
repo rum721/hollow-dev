@@ -160,7 +160,8 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
 
     const baseUrl = PROVIDER_BASE_URLS[modelInfo.provider];
     const isOpenAI = modelInfo.provider === 'openai';
-    const tokenLimitKey = isOpenAI ? 'max_completion_tokens' : 'max_tokens';
+    const isNewOpenAIModel = isOpenAI && /^(gpt-5|o[1-9])/.test(modelInfo.apiModelId);
+    const tokenLimitKey = isNewOpenAIModel ? 'max_completion_tokens' : 'max_tokens';
     const response = await apiFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -169,14 +170,15 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
       },
       body: JSON.stringify({
         model: modelInfo.apiModelId,
-        [tokenLimitKey]: 1,
+        [tokenLimitKey]: 10,
         messages: [{ role: 'user', content: 'Hi' }],
       }),
     });
 
     if (response.ok || response.status === 200) return { valid: true };
     if (response.status === 401) return { valid: false, error: 'Invalid API key' };
-    return { valid: false, error: `Error ${response.status}` };
+    const errBody = await response.text().catch(() => '');
+    return { valid: false, error: `Error ${response.status}: ${errBody.slice(0, 200)}` };
   } catch (e) {
     return { valid: false, error: 'Network error' };
   }

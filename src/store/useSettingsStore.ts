@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Platform } from 'react-native';
 import type { ConversationStyle, LanguageSetting, AutoDestructDays } from '../types/settings';
 import * as settingsRepo from '../services/storage/settingsRepo';
+import { logError } from '../utils/errorLogger';
 
 interface SettingsState {
   nickname: string;
@@ -52,7 +53,7 @@ async function saveApiKeys(keys: Record<string, string>): Promise<void> {
 }
 
 function persist(key: string, value: string) {
-  settingsRepo.setSetting(key, value).catch(() => {});
+  settingsRepo.setSetting(key, value).catch(logError('settings', 'persist'));
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -96,7 +97,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setAutoDestructDays: (autoDestructDays) => {
     set({ autoDestructDays });
     if (autoDestructDays === null) {
-      settingsRepo.deleteSetting('autoDestructDays').catch(() => {});
+      settingsRepo.deleteSetting('autoDestructDays').catch(logError('settings', 'deleteAutoDestruct'));
     } else {
       persist('autoDestructDays', String(autoDestructDays));
     }

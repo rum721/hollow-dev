@@ -8,6 +8,7 @@ import { shouldExtractMemory, extractMemories } from '../services/ai/memoryExtra
 import { mergeExtractionResult } from '../services/ai/profileMerger';
 import { getRelevantKnowledge } from '../services/knowledge/knowledgeRetriever';
 import { getEffectiveLocale } from '../i18n';
+import { logError } from '../utils/errorLogger';
 import type { ChatMessage } from '../services/ai/types';
 
 export function useStreaming() {
@@ -93,12 +94,13 @@ export function useStreaming() {
                       // Refresh memory store after merge
                       useMemoryStore.getState().invalidateCache();
                       useMemoryStore.getState().loadAll();
-                    }).catch(() => {});
+                    }).catch(logError('memory', 'mergeExtraction'));
                   }
                   // Update extraction index regardless of result
                   useChatStore.getState().setLastExtractionIndex(sessionId, allMsgs.length);
                 })
-                .catch(() => {
+                .catch((e: unknown) => {
+                  logError('memory', 'extractMemories')(e);
                   // Still update index to prevent retrying the same messages
                   useChatStore.getState().setLastExtractionIndex(sessionId, allMsgs.length);
                 });

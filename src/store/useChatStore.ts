@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { randomUUID } from 'expo-crypto';
 import type { Session, Message, SessionStatus } from '../types/chat';
 import * as conversationRepo from '../services/storage/conversationRepo';
+import { logError } from '../utils/errorLogger';
 
 interface ChatState {
   sessions: Session[];
@@ -86,7 +87,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentSessionId: id,
       messages: { ...state.messages, [id]: [] },
     }));
-    conversationRepo.insertSession(session).catch(() => {});
+    conversationRepo.insertSession(session).catch(logError('chat', 'insertSession'));
     return id;
   },
 
@@ -109,8 +110,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           : s,
       ),
     }));
-    conversationRepo.insertMessage(msg).catch(() => {});
-    conversationRepo.updateSessionLastMessage(sessionId, content, msgs.length).catch(() => {});
+    conversationRepo.insertMessage(msg).catch(logError('chat', 'insertUserMessage'));
+    conversationRepo.updateSessionLastMessage(sessionId, content, msgs.length).catch(logError('chat', 'updateLastMessage'));
   },
 
   addAssistantMessage: (sessionId, content) => {
@@ -130,8 +131,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           : s,
       ),
     }));
-    conversationRepo.insertMessage(msg).catch(() => {});
-    conversationRepo.updateSessionLastMessage(sessionId, content, msgs.length).catch(() => {});
+    conversationRepo.insertMessage(msg).catch(logError('chat', 'insertAssistantMessage'));
+    conversationRepo.updateSessionLastMessage(sessionId, content, msgs.length).catch(logError('chat', 'updateLastMessage'));
   },
 
   appendStreamToken: (token) =>
@@ -171,10 +172,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           : s,
       ),
     }));
-    conversationRepo.insertMessage(msg).catch(() => {});
-    conversationRepo.updateSessionLastMessage(sessionId, content, msgs.length).catch(() => {});
+    conversationRepo.insertMessage(msg).catch(logError('chat', 'finalizeMessage'));
+    conversationRepo.updateSessionLastMessage(sessionId, content, msgs.length).catch(logError('chat', 'updateLastMessage'));
     if (isFirstReply && newTitle !== session?.title) {
-      conversationRepo.updateSessionTitle(sessionId, newTitle).catch(() => {});
+      conversationRepo.updateSessionTitle(sessionId, newTitle).catch(logError('chat', 'updateTitle'));
     }
   },
 
@@ -188,7 +189,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ),
       currentSessionId: state.currentSessionId === id ? null : state.currentSessionId,
     }));
-    conversationRepo.deleteSessionPermanently(id).catch(() => {});
+    conversationRepo.deleteSessionPermanently(id).catch(logError('chat', 'deleteSession'));
   },
 
   archiveSession: (id) => {
@@ -196,7 +197,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sessions: state.sessions.filter((s) => s.id !== id),
       currentSessionId: state.currentSessionId === id ? null : state.currentSessionId,
     }));
-    conversationRepo.updateSessionStatus(id, 'archived').catch(() => {});
+    conversationRepo.updateSessionStatus(id, 'archived').catch(logError('chat', 'archiveSession'));
   },
 
   destroySession: (id) => {
@@ -207,13 +208,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ),
       currentSessionId: state.currentSessionId === id ? null : state.currentSessionId,
     }));
-    conversationRepo.deleteSessionPermanently(id).catch(() => {});
+    conversationRepo.deleteSessionPermanently(id).catch(logError('chat', 'destroySession'));
   },
 
   restoreSession: (id) => {
     conversationRepo.updateSessionStatus(id, 'active').then(() => {
       get().loadSessions();
-    }).catch(() => {});
+    }).catch(logError('chat', 'restoreSession'));
   },
 
   getManusTaskId: (sessionId) => {
@@ -227,7 +228,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ),
     }));
     // Persist to database
-    conversationRepo.updateManusTaskId(sessionId, taskId).catch(() => {});
+    conversationRepo.updateManusTaskId(sessionId, taskId).catch(logError('chat', 'setManusTaskId'));
   },
 
   // ── Memory extraction tracking (in-memory, resets per app restart) ──

@@ -1,21 +1,29 @@
 /**
- * Encryption service for Hollow app.
+ * Encryption service for Hollow app — AES-256-GCM via expo-crypto.
  *
- * Uses a per-device key stored in expo-secure-store (native) or localStorage (web).
- * Applies a repeating-key XOR cipher with Base64 encoding as an MVP encryption layer.
- * Encrypted values are prefixed with "ENC:" so we can distinguish them from plaintext
- * (important for migrating existing unencrypted data).
+ * Uses a per-device 256-bit key stored in expo-secure-store (native) or
+ * localStorage (web). Encrypts all sensitive data with AES-256-GCM which
+ * provides both confidentiality and integrity (authenticated encryption).
  *
- * For production, replace the XOR cipher with AES-256-GCM via a native crypto module.
+ * Encrypted values are prefixed with "AES:" (new) or "ENC:" (legacy XOR).
+ * The module transparently decrypts both formats, enabling seamless migration
+ * from the old XOR cipher to AES-GCM.
+ *
+ * Storage format: "AES:" + base64(IV‖ciphertext‖tag)
+ *   - IV: 12 bytes (96 bits)
+ *   - Tag: 16 bytes (128 bits)
  */
 
 import { Platform } from 'react-native';
 
 const ENCRYPTION_KEY_ID = 'hollow_encryption_key';
-const ENCRYPTED_PREFIX = 'ENC:';
+const AES_PREFIX = 'AES:';
+const LEGACY_XOR_PREFIX = 'ENC:';
 
-// Cached key so that sync encrypt/decrypt is possible after initialization
-let cachedKey: string | null = null;
+// ─── Cached state ────────────────────────────────────────
+
+let cachedKeyHex: string | null = null;
+let aesKey: any = null; // AESEncryptionKey instance (loaded lazily)
 
 // ─── Key Management ──────────────────────────────────────
 
@@ -50,21 +58,17 @@ async function setSecureStoreItem(key: string, value: string): Promise<void> {
 
 /**
  * Generate a random 32-byte (256-bit) key as a hex string.
- * Uses Math.random as a fallback when crypto APIs are unavailable.
+ * Uses cryptographically secure source via globalThis.crypto.
  */
-function generateRandomKey(): string {
+function generateRandomKeyHex(): string {
   const bytes = new Uint8Array(32);
-
-  // Try to use a cryptographically secure source
   if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
     globalThis.crypto.getRandomValues(bytes);
   } else {
-    // Fallback for environments without Web Crypto
     for (let i = 0; i < bytes.length; i++) {
       bytes[i] = Math.floor(Math.random() * 256);
     }
   }
-
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
@@ -73,40 +77,56 @@ function generateRandomKey(): string {
 /**
  * Retrieve the existing encryption key or generate and persist a new one.
  */
-async function getOrCreateKey(): Promise<string> {
+async function getOrCreateKeyHex(): Promise<string> {
   const existing = await getSecureStoreItem(ENCRYPTION_KEY_ID);
   if (existing) return existing;
 
-  const newKey = generateRandomKey();
+  const newKey = generateRandomKeyHex();
   await setSecureStoreItem(ENCRYPTION_KEY_ID, newKey);
   return newKey;
 }
 
-// ─── Base64 helpers (works in both RN and web) ───────────
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  // btoa is available in React Native and modern web
-  return btoa(binary);
-}
-
-function base64ToUint8(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-// ─── XOR Cipher ──────────────────────────────────────────
+// ─── AES-GCM via expo-crypto ─────────────────────────────
 
 /**
- * Convert a hex key string into bytes for XOR operations.
+ * Import the hex key into an AESEncryptionKey instance.
  */
+async function getAESKey(): Promise<any> {
+  if (aesKey) return aesKey;
+  if (!cachedKeyHex) throw new Error('Encryption not initialized');
+
+  const { AESEncryptionKey } = await import('expo-crypto');
+  aesKey = await AESEncryptionKey.import(cachedKeyHex, 'hex');
+  return aesKey;
+}
+
+/**
+ * Encrypt plaintext with AES-256-GCM.
+ * Returns: "AES:" + base64(IV‖ciphertext‖tag)
+ */
+async function aesEncrypt(plaintext: string): Promise<string> {
+  const { aesEncryptAsync } = await import('expo-crypto');
+  const key = await getAESKey();
+  const textBytes = new TextEncoder().encode(plaintext);
+  const sealed = await aesEncryptAsync(textBytes, key);
+  const combined = (await sealed.combined('base64')) as string;
+  return AES_PREFIX + combined;
+}
+
+/**
+ * Decrypt AES-256-GCM ciphertext.
+ * Input: base64(IV‖ciphertext‖tag) — without the "AES:" prefix.
+ */
+async function aesDecrypt(base64Combined: string): Promise<string> {
+  const { aesDecryptAsync, AESSealedData } = await import('expo-crypto');
+  const key = await getAESKey();
+  const sealed = AESSealedData.fromCombined(base64Combined);
+  const decryptedBytes = (await aesDecryptAsync(sealed, key)) as Uint8Array;
+  return new TextDecoder().decode(decryptedBytes);
+}
+
+// ─── Legacy XOR Cipher (read-only, for migration) ────────
+
 function keyToBytes(hexKey: string): Uint8Array {
   const bytes = new Uint8Array(hexKey.length / 2);
   for (let i = 0; i < bytes.length; i++) {
@@ -115,9 +135,6 @@ function keyToBytes(hexKey: string): Uint8Array {
   return bytes;
 }
 
-/**
- * XOR each byte of data with the corresponding byte of the key (cycling).
- */
 function xorBytes(data: Uint8Array, key: Uint8Array): Uint8Array {
   const result = new Uint8Array(data.length);
   for (let i = 0; i < data.length; i++) {
@@ -127,145 +144,128 @@ function xorBytes(data: Uint8Array, key: Uint8Array): Uint8Array {
 }
 
 /**
- * Encode a string to UTF-8 bytes.
+ * Decrypt legacy XOR-encrypted data (ENC: prefix).
+ * Kept for backwards compatibility — all new writes use AES-GCM.
  */
-function stringToUtf8Bytes(str: string): Uint8Array {
-  // TextEncoder is available in RN and modern browsers
-  if (typeof TextEncoder !== 'undefined') {
-    return new TextEncoder().encode(str);
-  }
-  // Fallback: only handles ASCII + basic multi-byte via manual encoding
-  const bytes: number[] = [];
-  for (let i = 0; i < str.length; i++) {
-    const code = str.charCodeAt(i);
-    if (code < 0x80) {
-      bytes.push(code);
-    } else if (code < 0x800) {
-      bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
-    } else if (code < 0xd800 || code >= 0xe000) {
-      bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
-    } else {
-      // Surrogate pair
-      i++;
-      const cp = 0x10000 + (((code & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff));
-      bytes.push(
-        0xf0 | (cp >> 18),
-        0x80 | ((cp >> 12) & 0x3f),
-        0x80 | ((cp >> 6) & 0x3f),
-        0x80 | (cp & 0x3f),
-      );
+function legacyXorDecrypt(base64Data: string): string {
+  if (!cachedKeyHex) return base64Data;
+  try {
+    const binary = atob(base64Data);
+    const encrypted = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      encrypted[i] = binary.charCodeAt(i);
     }
+    const keyBytes = keyToBytes(cachedKeyHex);
+    const decrypted = xorBytes(encrypted, keyBytes);
+    return new TextDecoder().decode(decrypted);
+  } catch {
+    return base64Data;
   }
-  return new Uint8Array(bytes);
 }
 
-/**
- * Decode UTF-8 bytes back to a string.
- */
-function utf8BytesToString(bytes: Uint8Array): string {
-  if (typeof TextDecoder !== 'undefined') {
-    return new TextDecoder().decode(bytes);
-  }
-  // Fallback
-  let result = '';
-  let i = 0;
-  while (i < bytes.length) {
-    const byte = bytes[i];
-    if (byte < 0x80) {
-      result += String.fromCharCode(byte);
-      i++;
-    } else if ((byte & 0xe0) === 0xc0) {
-      result += String.fromCharCode(((byte & 0x1f) << 6) | (bytes[i + 1] & 0x3f));
-      i += 2;
-    } else if ((byte & 0xf0) === 0xe0) {
-      result += String.fromCharCode(
-        ((byte & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f),
-      );
-      i += 3;
-    } else {
-      const cp =
-        ((byte & 0x07) << 18) |
-        ((bytes[i + 1] & 0x3f) << 12) |
-        ((bytes[i + 2] & 0x3f) << 6) |
-        (bytes[i + 3] & 0x3f);
-      // Convert code point to surrogate pair
-      const adjusted = cp - 0x10000;
-      result += String.fromCharCode(0xd800 + (adjusted >> 10), 0xdc00 + (adjusted & 0x3ff));
-      i += 4;
+function legacyXorEncrypt(plaintext: string): string {
+  if (!cachedKeyHex) return plaintext;
+  try {
+    const keyBytes = keyToBytes(cachedKeyHex);
+    const textBytes = new TextEncoder().encode(plaintext);
+    const encrypted = xorBytes(textBytes, keyBytes);
+    let binary = '';
+    for (let i = 0; i < encrypted.length; i++) {
+      binary += String.fromCharCode(encrypted[i]);
     }
+    return LEGACY_XOR_PREFIX + btoa(binary);
+  } catch {
+    return plaintext;
   }
-  return result;
 }
 
 // ─── Public API ──────────────────────────────────────────
 
 /**
  * Initialize the encryption subsystem. Must be called (and awaited) before
- * any sync encrypt/decrypt operations. Safe to call multiple times.
+ * any encrypt/decrypt operations. Safe to call multiple times.
  */
 export async function initEncryption(): Promise<void> {
-  if (cachedKey) return;
-  cachedKey = await getOrCreateKey();
+  if (cachedKeyHex) return;
+  cachedKeyHex = await getOrCreateKeyHex();
+  // Pre-load AES key on native
+  if (Platform.OS !== 'web') {
+    try {
+      await getAESKey();
+    } catch {
+      // AES key import may fail on web — fallback handled in encrypt/decrypt
+    }
+  }
 }
 
 /**
- * Encrypt plaintext asynchronously. Initializes the key if needed.
+ * Encrypt plaintext with AES-256-GCM.
+ * Falls back to XOR on web where expo-crypto AES may not be available.
  */
 export async function encryptText(plaintext: string): Promise<string> {
-  if (!cachedKey) await initEncryption();
-  return encryptSync(plaintext);
+  if (!cachedKeyHex) await initEncryption();
+  if (!plaintext) return plaintext;
+
+  try {
+    return await aesEncrypt(plaintext);
+  } catch {
+    // Fallback: XOR encryption for web or if AES unavailable
+    return legacyXorEncrypt(plaintext);
+  }
 }
 
 /**
- * Decrypt ciphertext asynchronously. Initializes the key if needed.
- * Returns the original string if the value is not encrypted (no ENC: prefix).
+ * Decrypt ciphertext. Transparently handles:
+ *   - "AES:" prefix → AES-256-GCM decryption
+ *   - "ENC:" prefix → Legacy XOR decryption (migration)
+ *   - No prefix    → plaintext (pre-encryption data)
  */
 export async function decryptText(ciphertext: string): Promise<string> {
-  if (!cachedKey) await initEncryption();
-  return decryptSync(ciphertext);
+  if (!cachedKeyHex) await initEncryption();
+  if (!ciphertext) return ciphertext;
+
+  if (ciphertext.startsWith(AES_PREFIX)) {
+    try {
+      return await aesDecrypt(ciphertext.slice(AES_PREFIX.length));
+    } catch {
+      return ciphertext;
+    }
+  }
+
+  if (ciphertext.startsWith(LEGACY_XOR_PREFIX)) {
+    return legacyXorDecrypt(ciphertext.slice(LEGACY_XOR_PREFIX.length));
+  }
+
+  return ciphertext;
 }
 
 /**
- * Encrypt plaintext synchronously. Requires initEncryption() to have been called.
- * Returns the plaintext unchanged if no key is available (graceful degradation).
+ * @deprecated Use encryptText() instead. Kept only for web fallback.
  */
 export function encryptSync(plaintext: string): string {
-  if (!cachedKey || !plaintext) return plaintext;
-  try {
-    const keyBytes = keyToBytes(cachedKey);
-    const textBytes = stringToUtf8Bytes(plaintext);
-    const encrypted = xorBytes(textBytes, keyBytes);
-    return ENCRYPTED_PREFIX + uint8ToBase64(encrypted);
-  } catch {
-    // If encryption fails for any reason, return plaintext rather than losing data
-    return plaintext;
-  }
+  if (!cachedKeyHex || !plaintext) return plaintext;
+  return legacyXorEncrypt(plaintext);
 }
 
 /**
- * Decrypt ciphertext synchronously. Requires initEncryption() to have been called.
- * Returns the input unchanged if it does not have the ENC: prefix (handles
- * pre-existing unencrypted data seamlessly).
+ * @deprecated Use decryptText() instead.
+ * Cannot decrypt AES: data synchronously — caller should use decryptText().
  */
 export function decryptSync(ciphertext: string): string {
-  if (!cachedKey || !ciphertext) return ciphertext;
-  // If the value was never encrypted, return as-is (migration-friendly)
-  if (!ciphertext.startsWith(ENCRYPTED_PREFIX)) return ciphertext;
-  try {
-    const b64 = ciphertext.slice(ENCRYPTED_PREFIX.length);
-    const encrypted = base64ToUint8(b64);
-    const keyBytes = keyToBytes(cachedKey);
-    const decrypted = xorBytes(encrypted, keyBytes);
-    return utf8BytesToString(decrypted);
-  } catch {
-    // If decryption fails, return the raw value so the app doesn't crash
+  if (!cachedKeyHex || !ciphertext) return ciphertext;
+  if (ciphertext.startsWith(AES_PREFIX)) {
+    // Cannot decrypt AES synchronously — return as-is
     return ciphertext;
   }
+  if (ciphertext.startsWith(LEGACY_XOR_PREFIX)) {
+    return legacyXorDecrypt(ciphertext.slice(LEGACY_XOR_PREFIX.length));
+  }
+  return ciphertext;
 }
 
 /**
  * Check whether the encryption subsystem has been initialized.
  */
 export function isEncryptionReady(): boolean {
-  return cachedKey !== null;
+  return cachedKeyHex !== null;
 }

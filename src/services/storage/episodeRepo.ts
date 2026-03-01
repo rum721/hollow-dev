@@ -1,6 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import { getDatabase } from './database';
-import { encryptSync, decryptSync } from './encryption';
+import { encryptText, decryptText } from './encryption';
 import type { EpisodicMemory, EmotionTag } from '../../types/memory';
 
 export async function getRecentEpisodes(limit: number = 50): Promise<EpisodicMemory[]> {
@@ -8,7 +8,7 @@ export async function getRecentEpisodes(limit: number = 50): Promise<EpisodicMem
   const rows = (await db.getAllAsync(
     'SELECT * FROM episodic_memories ORDER BY created_at DESC LIMIT ?', [limit],
   )) as any[];
-  return rows.map(toEpisode);
+  return Promise.all(rows.map(toEpisode));
 }
 
 export async function getEpisodesByDateRange(
@@ -20,7 +20,7 @@ export async function getEpisodesByDateRange(
     'SELECT * FROM episodic_memories WHERE event_date >= ? AND event_date <= ? ORDER BY event_date DESC',
     [start, end],
   )) as any[];
-  return rows.map(toEpisode);
+  return Promise.all(rows.map(toEpisode));
 }
 
 export async function insertEpisode(episode: {
@@ -33,9 +33,10 @@ export async function insertEpisode(episode: {
 }): Promise<void> {
   const db = await getDatabase();
   const id = randomUUID();
+  const encrypted = await encryptText(episode.content);
   await db.runAsync(
     `INSERT INTO episodic_memories (id, session_id, content, emotion, intensity, event_date, decay_weight) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, episode.sessionId, encryptSync(episode.content), episode.emotion, episode.intensity, episode.eventDate, episode.decayWeight],
+    [id, episode.sessionId, encrypted, episode.emotion, episode.intensity, episode.eventDate, episode.decayWeight],
   );
 }
 
@@ -51,7 +52,6 @@ export async function deleteEpisode(id: string): Promise<void> {
  */
 export async function updateDecayWeights(): Promise<void> {
   const db = await getDatabase();
-  // Use SQLite's julianday for date math
   await db.execAsync(`
     UPDATE episodic_memories SET decay_weight =
       CASE
@@ -75,11 +75,11 @@ export async function pruneDecayedEpisodes(threshold: number = 0.05): Promise<nu
   return result?.changes ?? 0;
 }
 
-function toEpisode(row: any): EpisodicMemory {
+async function toEpisode(row: any): Promise<EpisodicMemory> {
   return {
     id: row.id,
     sessionId: row.session_id,
-    content: decryptSync(row.content),
+    content: await decryptText(row.content),
     emotion: (row.emotion || 'neutral') as EmotionTag,
     intensity: row.intensity ?? 3,
     eventDate: row.event_date || row.created_at,

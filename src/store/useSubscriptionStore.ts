@@ -3,6 +3,7 @@ import type { SubscriptionTier } from '../types/subscription';
 import { TIER_CONFIG } from '../types/subscription';
 import * as usageRepo from '../services/storage/usageRepo';
 import * as settingsRepo from '../services/storage/settingsRepo';
+import { logError } from '../utils/errorLogger';
 
 // TestFlight / dev: default to premium with no limits.
 // TODO: revert to `__DEV__` check before App Store release.
@@ -43,7 +44,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
 
   setTier: (tier) => {
     set({ tier });
-    settingsRepo.setSetting('subscription_tier', tier).catch(() => {});
+    settingsRepo.setSetting('subscription_tier', tier).catch(logError('subscription', 'setTier'));
   },
 
   canSendMessage: () => {
