@@ -18,14 +18,16 @@ export async function streamOpenAICompatibleChat(
   signal?: AbortSignal,
 ): Promise<void> {
   try {
-    // OpenAI newer models (gpt-5.x, o1, o3, etc.) require:
+    // OpenAI o-series reasoning models (o1, o3, o4-mini) require:
     //   - "developer" role instead of "system" role
     //   - "max_completion_tokens" instead of "max_tokens"
-    // Older OpenAI models (gpt-4o, gpt-4o-mini) still use "system" and "max_tokens".
+    // GPT-5.x models default to reasoning_effort=none (non-reasoning mode),
+    // so they accept "system" role and "max_tokens" like standard models.
+    // GPT-4o and older models also use "system" and "max_tokens".
     const isOpenAI = baseUrl.includes('api.openai.com');
-    const isNewOpenAIModel = isOpenAI && /^(gpt-5|o[1-9])/.test(model);
-    const systemRole = isNewOpenAIModel ? 'developer' : 'system';
-    const tokenLimitKey = isNewOpenAIModel ? 'max_completion_tokens' : 'max_tokens';
+    const isOSeriesReasoning = isOpenAI && /^o[1-9]/.test(model);
+    const systemRole = isOSeriesReasoning ? 'developer' : 'system';
+    const tokenLimitKey = isOSeriesReasoning ? 'max_completion_tokens' : 'max_tokens';
 
     const fullMessages: ChatMessage[] = [
       { role: systemRole as ChatMessage['role'], content: systemPrompt },
@@ -95,7 +97,9 @@ export async function streamOpenAICompatibleChat(
     if (!response.ok) {
       const errBody = await response.text().catch(() => '');
       const classified = classifyApiError(response.status, errBody);
-      throw new Error(classified.message);
+      // Include raw error detail for debugging
+      const detail = errBody.length > 200 ? errBody.slice(0, 200) : errBody;
+      throw new Error(`${classified.message}${detail ? `\n[${response.status}] ${detail}` : ''}`);
     }
 
     const data = await response.json();
@@ -122,7 +126,8 @@ export async function streamOpenAICompatibleChat(
         if (!res.ok) {
           const errBody = await res.text().catch(() => '');
           const classified = classifyApiError(res.status, errBody);
-          throw new Error(classified.message);
+          const detail = errBody.length > 200 ? errBody.slice(0, 200) : errBody;
+          throw new Error(`${classified.message}${detail ? `\n[${res.status}] ${detail}` : ''}`);
         }
 
         const r = res.body?.getReader();

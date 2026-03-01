@@ -162,8 +162,10 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
 
     const baseUrl = PROVIDER_BASE_URLS[modelInfo.provider];
     const isOpenAI = modelInfo.provider === 'openai';
-    const isNewOpenAIModel = isOpenAI && /^(gpt-5|o[1-9])/.test(modelInfo.apiModelId);
-    const tokenLimitKey = isNewOpenAIModel ? 'max_completion_tokens' : 'max_tokens';
+    // Only o-series models (o1, o3, o4-mini) need max_completion_tokens;
+    // GPT-5.x defaults to non-reasoning mode (reasoning_effort=none), uses max_tokens.
+    const isOSeriesReasoning = isOpenAI && /^o[1-9]/.test(modelInfo.apiModelId);
+    const tokenLimitKey = isOSeriesReasoning ? 'max_completion_tokens' : 'max_tokens';
     const response = await apiFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -180,7 +182,8 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
     if (response.ok || response.status === 200) return { valid: true };
     const errBody = await response.text().catch(() => '');
     const classified = classifyApiError(response.status, errBody);
-    return { valid: false, error: classified.message };
+    const detail = errBody.length > 200 ? errBody.slice(0, 200) : errBody;
+    return { valid: false, error: `${classified.message}${detail ? `\n${detail}` : ''}` };
   } catch (e) {
     return { valid: false, error: '网络连接失败，请检查网络设置' };
   }
