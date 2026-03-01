@@ -159,6 +159,8 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
     }
 
     const baseUrl = PROVIDER_BASE_URLS[modelInfo.provider];
+    const isOpenAI = modelInfo.provider === 'openai';
+    const tokenLimitKey = isOpenAI ? 'max_completion_tokens' : 'max_tokens';
     const response = await apiFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -167,7 +169,7 @@ export async function validateApiKey(modelId: string, apiKey: string): Promise<{
       },
       body: JSON.stringify({
         model: modelInfo.apiModelId,
-        max_tokens: 1,
+        [tokenLimitKey]: 1,
         messages: [{ role: 'user', content: 'Hi' }],
       }),
     });

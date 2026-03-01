@@ -28,6 +28,11 @@ export async function streamOpenAICompatibleChat(
       Authorization: `Bearer ${apiKey}`,
     };
 
+    // OpenAI newer models (gpt-5.x, o3, etc.) require max_completion_tokens
+    // instead of max_tokens. Other providers still use max_tokens.
+    const isOpenAI = baseUrl.includes('api.openai.com');
+    const tokenLimitKey = isOpenAI ? 'max_completion_tokens' : 'max_tokens';
+
     const reader = typeof ReadableStream !== 'undefined'
       ? await tryStreamingRequest() : null;
 
@@ -74,9 +79,9 @@ export async function streamOpenAICompatibleChat(
       headers: reqHeaders,
       body: JSON.stringify({
         model,
-        max_tokens: options?.maxTokens ?? 4096,
+        [tokenLimitKey]: options?.maxTokens ?? 4096,
         stream: false,
-        store: options?.store ?? true,
+        ...(isOpenAI ? {} : { store: options?.store ?? true }),
         messages: fullMessages.map((m) => ({ role: m.role, content: m.content })),
       }),
       signal,
@@ -100,9 +105,9 @@ export async function streamOpenAICompatibleChat(
           headers: reqHeaders,
           body: JSON.stringify({
             model,
-            max_tokens: options?.maxTokens ?? 4096,
+            [tokenLimitKey]: options?.maxTokens ?? 4096,
             stream: true,
-            store: options?.store ?? true,
+            ...(isOpenAI ? {} : { store: options?.store ?? true }),
             messages: fullMessages.map((m) => ({ role: m.role, content: m.content })),
           }),
           signal,
