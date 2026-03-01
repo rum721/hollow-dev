@@ -1,12 +1,12 @@
 /**
- * Voice Service — stubbed for v1.0 TestFlight.
+ * Voice Service — real implementation using expo-av.
  *
- * expo-av has a known EXEventEmitter.h incompatibility with Expo SDK 55's
- * ExpoModulesCore. All functions throw a "not available" error until the
- * upstream fix lands, at which point we reinstall expo-av and restore the
- * real implementation.
+ * Recording  → expo-av Audio.Recording
+ * STT        → OpenAI Whisper API
+ * TTS        → OpenAI TTS API + expo-av Audio.Sound playback
  */
 
+import { Audio } from 'expo-av';
 import { Platform } from 'react-native';
 import { apiFetch } from '../ai/apiFetch';
 
@@ -15,21 +15,62 @@ const TTS_API = 'https://api.openai.com/v1/audio/speech';
 
 export interface VoiceServiceConfig {
   openaiApiKey: string;
+  conversationStyle?: string;
 }
 
-const UNAVAILABLE_MSG =
-  'Voice mode is not available in this build. It will be enabled in a future update.';
+// TTS voice mapping based on conversation style
+const VOICE_MAP: Record<string, string> = {
+  empathetic: 'shimmer',  // 温暖、友好
+  analytical: 'onyx',     // 沉稳、理性
+  balanced: 'nova',       // 中性、自然
+};
 
-// --- Recording (stubbed) ---
+let currentRecording: Audio.Recording | null = null;
+
+// --- Recording ---
+
 export async function startRecording(): Promise<void> {
-  throw new Error(UNAVAILABLE_MSG);
+  // Request permissions
+  const { status } = await Audio.requestPermissionsAsync();
+  if (status !== 'granted') {
+    throw new Error('Microphone permission denied');
+  }
+
+  // Configure audio mode for recording
+  await Audio.setAudioModeAsync({
+    allowsRecordingIOS: true,
+    playsInSilentModeIOS: true,
+  });
+
+  const { recording } = await Audio.Recording.createAsync(
+    Audio.RecordingOptionsPresets.HIGH_QUALITY,
+  );
+  currentRecording = recording;
 }
 
 export async function stopRecording(): Promise<string | null> {
-  throw new Error(UNAVAILABLE_MSG);
+  if (!currentRecording) return null;
+
+  try {
+    await currentRecording.stopAndUnloadAsync();
+    const uri = currentRecording.getURI();
+    currentRecording = null;
+
+    // Restore audio mode for playback
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+    });
+
+    return uri;
+  } catch (e) {
+    currentRecording = null;
+    throw e;
+  }
 }
 
 // --- Whisper ASR (Speech-to-Text) ---
+
 export async function transcribeAudio(
   audioUri: string,
   config: VoiceServiceConfig,
@@ -71,15 +112,65 @@ export async function transcribeAudio(
   return data.text || '';
 }
 
-// --- TTS (Text-to-Speech) (stubbed) ---
+// --- TTS (Text-to-Speech) ---
+
 export async function synthesizeSpeech(
-  _text: string,
-  _config: VoiceServiceConfig,
-): Promise<any> {
-  throw new Error(UNAVAILABLE_MSG);
+  text: string,
+  config: VoiceServiceConfig,
+): Promise<Audio.Sound> {
+  const voice = config.conversationStyle
+    ? (VOICE_MAP[config.conversationStyle] || 'shimmer')
+    : 'shimmer';
+
+  const res = await apiFetch(TTS_API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.openaiApiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'tts-1',
+      input: text,
+      voice,
+      response_format: 'mp3',
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`TTS API error: ${res.status} - ${err}`);
+  }
+
+  // Convert response to a local file URI for playback
+  const arrayBuffer = await res.arrayBuffer();
+  const base64 = arrayBufferToBase64(arrayBuffer);
+  const dataUri = `data:audio/mp3;base64,${base64}`;
+
+  const { sound } = await Audio.Sound.createAsync({ uri: dataUri });
+  return sound;
+}
+
+// --- Helpers ---
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  // React Native global btoa
+  if (typeof btoa === 'function') {
+    return btoa(binary);
+  }
+  // Fallback for environments without btoa
+  return Buffer.from(buffer).toString('base64');
 }
 
 // --- Cleanup ---
+
 export function cleanup() {
-  // no-op while stubbed
+  if (currentRecording) {
+    currentRecording.stopAndUnloadAsync().catch(() => {});
+    currentRecording = null;
+  }
 }

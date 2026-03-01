@@ -55,12 +55,25 @@ export function useVoicePipeline(sessionId: string) {
 
       // Step 1: Transcribe audio via Whisper (pass language setting for accuracy)
       const langSetting = settings.language; // 'auto' | 'en' | 'zh'
-      const text = await voiceService.transcribeAudio(
-        audioUri,
-        { openaiApiKey: openaiKey },
-        langSetting === 'auto' ? undefined : langSetting,
-      );
-      setTranscript(text);
+      let text: string;
+      try {
+        text = await voiceService.transcribeAudio(
+          audioUri,
+          { openaiApiKey: openaiKey },
+          langSetting === 'auto' ? undefined : langSetting,
+        );
+        setTranscript(text);
+      } catch (e: any) {
+        if (e.message?.includes('401')) {
+          setError('OpenAI API Key 无效，请在设置中检查');
+        } else if (e.message?.includes('Network') || e.message?.includes('network')) {
+          setError('网络连接失败，请检查网络');
+        } else {
+          setError('语音识别失败，请重试');
+        }
+        setState('idle');
+        return;
+      }
 
       if (!text.trim()) {
         setState('idle');
@@ -128,6 +141,7 @@ export function useVoicePipeline(sessionId: string) {
       try {
         const sound = await voiceService.synthesizeSpeech(fullResponse, {
           openaiApiKey: openaiKey,
+          conversationStyle: settings.conversationStyle,
         });
         soundRef.current = sound;
 
@@ -146,7 +160,14 @@ export function useVoicePipeline(sessionId: string) {
         setState('idle');
       }
     } catch (e: any) {
-      setError(e.message || 'Voice pipeline error');
+      const msg = e.message || '';
+      if (msg.includes('permission') || msg.includes('Permission')) {
+        setError('麦克风权限未授权，请在系统设置中开启');
+      } else if (msg.includes('not available')) {
+        setError('当前设备不支持语音功能');
+      } else {
+        setError(msg || '语音处理出错，请重试');
+      }
       setState('idle');
     }
   }, [sessionId]);

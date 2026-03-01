@@ -69,7 +69,9 @@
     "sessionTime": "Session Time",
     "tapToSpeak": "Tap to speak",
     "holdToSpeak": "Hold to speak",
-    "error": "Error: {{message}}"
+    "error": "Error: {{message}}",
+    "needApiKey": "Voice mode requires an OpenAI API Key",
+    "goToSettings": "Go to Settings"
   },
   "memory": {
     "title": "Your Memory",

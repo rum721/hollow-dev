@@ -69,7 +69,9 @@
     "sessionTime": "对话时长",
     "tapToSpeak": "轻触说话",
     "holdToSpeak": "长按说话",
-    "error": "错误：{{message}}"
+    "error": "错误：{{message}}",
+    "needApiKey": "语音功能需要 OpenAI API Key",
+    "goToSettings": "前往设置"
   },
   "memory": {
     "title": "你的记忆",
