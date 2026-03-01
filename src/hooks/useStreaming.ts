@@ -9,14 +9,71 @@ import { mergeExtractionResult } from '../services/ai/profileMerger';
 import { getRelevantKnowledge } from '../services/knowledge/knowledgeRetriever';
 import { getEffectiveLocale } from '../i18n';
 import { truncateMessages } from '../services/ai/messageTruncator';
+import { modelSupportsVision } from '../services/ai/models';
+import { loadImageBase64 } from '../services/image/imageService';
+import { textOf } from '../services/ai/contentUtils';
 import { logError } from '../utils/errorLogger';
-import type { ChatMessage } from '../services/ai/types';
+import type { ChatMessage, ChatContentBlock, MessageContent } from '../services/ai/types';
+import type { Message, ImageAttachment } from '../types/chat';
+
+/** Maximum number of recent image messages to include base64 data for (memory safety). */
+const MAX_IMAGE_MESSAGES = 2;
+
+/**
+ * Build a multimodal ChatMessage from a Message with optional imageAttachments.
+ * Images are loaded as base64 on demand.
+ */
+async function buildMultimodalContent(
+  msg: Message,
+  includeImages: boolean,
+): Promise<MessageContent> {
+  // No images or not including them → return text (with placeholder if images exist)
+  if (!msg.imageAttachments || msg.imageAttachments.length === 0 || !includeImages) {
+    if (msg.imageAttachments && msg.imageAttachments.length > 0 && !includeImages) {
+      // Image exists but we're degrading it to text
+      const textPart = msg.content || '';
+      return textPart ? `[图片] ${textPart}` : '[图片]';
+    }
+    return msg.content;
+  }
+
+  // Build content blocks: images first, then text
+  const blocks: ChatContentBlock[] = [];
+
+  for (const img of msg.imageAttachments) {
+    try {
+      const base64 = await loadImageBase64(img.uri);
+      blocks.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: img.mimeType,
+          data: base64,
+        },
+      });
+    } catch {
+      // If image loading fails, add a text placeholder
+      blocks.push({ type: 'text', text: '[图片加载失败]' });
+    }
+  }
+
+  // Add text content if present
+  if (msg.content.trim()) {
+    blocks.push({ type: 'text', text: msg.content });
+  }
+
+  return blocks;
+}
 
 export function useStreaming() {
   const abortRef = useRef<AbortController | null>(null);
   const lastExtractionTimeRef = useRef<number>(0);
 
-  const sendMessage = useCallback(async (sessionId: string, userText: string) => {
+  const sendMessage = useCallback(async (
+    sessionId: string,
+    userText: string,
+    images?: ImageAttachment[],
+  ) => {
     const { addUserMessage, appendStreamToken, finalizeAssistantMessage, setStreaming } =
       useChatStore.getState();
     const settings = useSettingsStore.getState();
@@ -28,25 +85,49 @@ export function useStreaming() {
       return { limitReached: true };
     }
 
-    addUserMessage(sessionId, userText);
+    addUserMessage(sessionId, userText, images);
     setStreaming(true);
 
     // Increment usage count
     subscription.incrementUsage();
 
     const allMessages = useChatStore.getState().messages[sessionId] ?? [];
-    const rawMessages: ChatMessage[] = allMessages.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
+
+    // ── Build multimodal ChatMessage[] ──
+    // Determine if the selected model supports vision
+    const supportsVision = modelSupportsVision(settings.selectedModel);
+
+    // Find which message indices have images (for limiting base64 to recent N)
+    const imageMessageIndices: number[] = [];
+    if (supportsVision) {
+      for (let i = allMessages.length - 1; i >= 0; i--) {
+        if (allMessages[i].imageAttachments && allMessages[i].imageAttachments!.length > 0) {
+          imageMessageIndices.unshift(i);
+          if (imageMessageIndices.length >= MAX_IMAGE_MESSAGES) break;
+        }
+      }
+    }
+
+    // Build ChatMessage[] with multimodal content
+    const rawMessages: ChatMessage[] = [];
+    for (let i = 0; i < allMessages.length; i++) {
+      const msg = allMessages[i];
+      const includeImages = supportsVision && imageMessageIndices.includes(i);
+      const content = await buildMultimodalContent(msg, includeImages);
+      rawMessages.push({
+        role: msg.role as 'user' | 'assistant',
+        content,
+      });
+    }
+
     // Dynamic truncation by token budget instead of fixed slice(-20)
     const chatMessages = truncateMessages(rawMessages, 8000);
 
-    // Extract recent user messages for memory relevance matching
+    // Extract recent user messages for memory relevance matching (text only)
     const recentUserMessages = chatMessages
       .filter((m) => m.role === 'user')
       .slice(-3)
-      .map((m) => m.content);
+      .map((m) => textOf(m.content));
 
     const effectiveLocale = getEffectiveLocale(settings.language);
     const knowledgeContext = getRelevantKnowledge(recentUserMessages, effectiveLocale);

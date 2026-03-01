@@ -3,7 +3,7 @@
  * Used for Free/Lite tiers where data may be used for model training.
  */
 
-import type { ChatMessage } from './types';
+import type { ChatMessage, MessageContent, ChatContentBlock } from './types';
 
 // Regex patterns for common PII
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -50,15 +50,29 @@ export function anonymizeText(text: string): string {
 }
 
 /**
+ * Anonymize multimodal content. Only text blocks are anonymized; images are passed through.
+ */
+function anonymizeContent(content: MessageContent): MessageContent {
+  if (typeof content === 'string') return anonymizeText(content);
+  return content.map((block: ChatContentBlock) => {
+    if (block.type === 'text') {
+      return { ...block, text: anonymizeText(block.text) };
+    }
+    // Image blocks pass through unchanged
+    return block;
+  });
+}
+
+/**
  * Anonymize an array of chat messages.
- * Only anonymizes content, preserves role.
+ * Only anonymizes text content, preserves role and image blocks.
  */
 export function anonymizeMessages(
   messages: ChatMessage[],
 ): ChatMessage[] {
   return messages.map((m) => ({
     ...m,
-    content: anonymizeText(m.content),
+    content: anonymizeContent(m.content),
   }));
 }
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { randomUUID } from 'expo-crypto';
-import type { Session, Message, SessionStatus } from '../types/chat';
+import type { Session, Message, SessionStatus, ImageAttachment } from '../types/chat';
 import * as conversationRepo from '../services/storage/conversationRepo';
 import { logError } from '../utils/errorLogger';
 
@@ -17,7 +17,7 @@ interface ChatState {
   loadMessages: (sessionId: string) => Promise<void>;
   createSession: () => Promise<string>;
   setCurrentSession: (id: string | null) => void;
-  addUserMessage: (sessionId: string, content: string) => void;
+  addUserMessage: (sessionId: string, content: string, imageAttachments?: ImageAttachment[]) => void;
   addAssistantMessage: (sessionId: string, content: string) => void;
   appendStreamToken: (token: string) => void;
   finalizeAssistantMessage: (sessionId: string, overrideText?: string) => void;
@@ -93,25 +93,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setCurrentSession: (id) => set({ currentSessionId: id }),
 
-  addUserMessage: (sessionId, content) => {
+  addUserMessage: (sessionId, content, imageAttachments?) => {
     const msg: Message = {
       id: randomUUID(),
       sessionId,
       role: 'user',
       content,
       createdAt: new Date().toISOString(),
+      imageAttachments: imageAttachments && imageAttachments.length > 0 ? imageAttachments : undefined,
     };
+    const displayContent = imageAttachments && imageAttachments.length > 0 && !content
+      ? '[图片]'
+      : content;
     const msgs = [...(get().messages[sessionId] ?? []), msg];
     set((state) => ({
       messages: { ...state.messages, [sessionId]: msgs },
       sessions: state.sessions.map((s) =>
         s.id === sessionId
-          ? { ...s, updatedAt: new Date().toISOString(), lastMessage: content, messageCount: msgs.length }
+          ? { ...s, updatedAt: new Date().toISOString(), lastMessage: displayContent, messageCount: msgs.length }
           : s,
       ),
     }));
     conversationRepo.insertMessage(msg).catch(logError('chat', 'insertUserMessage'));
-    conversationRepo.updateSessionLastMessage(sessionId, content, msgs.length).catch(logError('chat', 'updateLastMessage'));
+    conversationRepo.updateSessionLastMessage(sessionId, displayContent, msgs.length).catch(logError('chat', 'updateLastMessage'));
   },
 
   addAssistantMessage: (sessionId, content) => {
@@ -158,7 +162,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (isFirstReply) {
       const firstUserMsg = existingMsgs.find((m) => m.role === 'user');
       if (firstUserMsg) {
-        newTitle = firstUserMsg.content.slice(0, 20) + (firstUserMsg.content.length > 20 ? '...' : '');
+        const titleText = firstUserMsg.content || (firstUserMsg.imageAttachments ? '[图片对话]' : '');
+        newTitle = titleText.slice(0, 20) + (titleText.length > 20 ? '...' : '');
       }
     }
 

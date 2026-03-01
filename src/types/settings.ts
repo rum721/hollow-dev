@@ -28,6 +28,7 @@ export interface ModelInfo {
   provider: ModelProvider;
   apiModelId: string;
   apiKeyField: string;
+  supportsVision?: boolean;
 }
 
 export type AutoDestructDays = 7 | 30 | 90 | null;

@@ -9,6 +9,7 @@
 import { streamOpenAICompatibleChat } from './openaiCompatibleClient';
 import { streamAnthropicChat } from './anthropicClient';
 import { getModelInfo, PROVIDER_BASE_URLS } from './models';
+import { textOf } from './contentUtils';
 import type { ChatMessage } from './types';
 
 // ── Summary prompt ──
@@ -102,7 +103,7 @@ async function attemptSummarize(
   // Take last 30 messages max
   const recent = messages.slice(-30);
   const conversationText = recent
-    .map((m) => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content}`)
+    .map((m) => `${m.role === 'user' ? '用户' : 'AI'}: ${textOf(m.content)}`)
     .join('\n\n');
 
   const userMessage: ChatMessage[] = [

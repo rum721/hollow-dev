@@ -12,6 +12,14 @@ export interface Session {
   manusTaskId?: string;
 }
 
+// ── Image attachment (stored with Message, not base64) ──
+export interface ImageAttachment {
+  uri: string;           // local file:// path to compressed image
+  width: number;
+  height: number;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+}
+
 export interface Message {
   id: string;
   sessionId: string;
@@ -19,6 +27,7 @@ export interface Message {
   content: string;
   createdAt: string;
   metadata?: MessageMetadata;
+  imageAttachments?: ImageAttachment[];  // optional image data
 }
 
 export interface MessageMetadata {

@@ -6,6 +6,7 @@ import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { sendChatMessage } from '../services/ai/aiRouter';
 import { getEffectiveLocale } from '../i18n';
 import { truncateMessages } from '../services/ai/messageTruncator';
+import { textOf } from '../services/ai/contentUtils';
 import * as voiceService from '../services/voice/voiceService';
 import { VoiceError } from '../services/voice/voiceService';
 import type { ChatMessage } from '../services/ai/types';
@@ -121,7 +122,7 @@ export function useVoicePipeline(sessionId: string) {
       const recentUserMessages = chatMessages
         .filter((m) => m.role === 'user')
         .slice(-3)
-        .map((m) => m.content);
+        .map((m) => textOf(m.content));
 
       let fullResponse = '';
 

@@ -29,6 +29,7 @@ export const MODEL_LIST: ModelInfo[] = [
     provider: 'anthropic',
     apiModelId: 'claude-opus-4-6',
     apiKeyField: 'anthropicApiKey',
+    supportsVision: true,
   },
   {
     id: 'claude-sonnet-4-6',
@@ -36,6 +37,7 @@ export const MODEL_LIST: ModelInfo[] = [
     provider: 'anthropic',
     apiModelId: 'claude-sonnet-4-6',
     apiKeyField: 'anthropicApiKey',
+    supportsVision: true,
   },
   // — OpenAI —
   {
@@ -44,6 +46,7 @@ export const MODEL_LIST: ModelInfo[] = [
     provider: 'openai',
     apiModelId: 'gpt-5.2',
     apiKeyField: 'openaiApiKey',
+    supportsVision: true,
   },
   {
     id: 'gpt-5.2-pro',
@@ -51,6 +54,7 @@ export const MODEL_LIST: ModelInfo[] = [
     provider: 'openai',
     apiModelId: 'gpt-5.2-pro',
     apiKeyField: 'openaiApiKey',
+    supportsVision: true,
   },
   {
     id: 'o3',
@@ -58,6 +62,7 @@ export const MODEL_LIST: ModelInfo[] = [
     provider: 'openai',
     apiModelId: 'o3',
     apiKeyField: 'openaiApiKey',
+    supportsVision: true,
   },
   {
     id: 'gpt-4o-mini',
@@ -65,6 +70,7 @@ export const MODEL_LIST: ModelInfo[] = [
     provider: 'openai',
     apiModelId: 'gpt-4o-mini',
     apiKeyField: 'openaiApiKey',
+    supportsVision: true,
   },
   // — Google —
   {
@@ -73,6 +79,7 @@ export const MODEL_LIST: ModelInfo[] = [
     provider: 'google',
     apiModelId: 'gemini-3.1-pro-preview',
     apiKeyField: 'googleApiKey',
+    supportsVision: true,
   },
   {
     id: 'gemini-2.5-flash',
@@ -80,6 +87,7 @@ export const MODEL_LIST: ModelInfo[] = [
     provider: 'google',
     apiModelId: 'gemini-2.5-flash-preview-05-20',
     apiKeyField: 'googleApiKey',
+    supportsVision: true,
   },
   // — DeepSeek —
   {
@@ -194,4 +202,9 @@ export const MODEL_LIST: ModelInfo[] = [
 
 export function getModelInfo(modelId: string): ModelInfo | undefined {
   return MODEL_LIST.find((m) => m.id === modelId);
+}
+
+export function modelSupportsVision(modelId: string): boolean {
+  const info = getModelInfo(modelId);
+  return info?.supportsVision === true;
 }

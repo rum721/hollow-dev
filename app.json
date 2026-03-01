@@ -17,7 +17,9 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Hollow 需要使用麦克风进行语音对话",
-        "NSSpeechRecognitionUsageDescription": "Hollow 需要语音识别功能将语音转为文字"
+        "NSSpeechRecognitionUsageDescription": "Hollow 需要语音识别功能将语音转为文字",
+        "NSPhotoLibraryUsageDescription": "Hollow 需要访问相册以便在对话中分享图片",
+        "NSCameraUsageDescription": "Hollow 需要使用相机以便拍照分享"
       }
     },
     "android": {
@@ -29,7 +31,9 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "READ_MEDIA_IMAGES",
+        "CAMERA"
       ]
     },
     "web": {
@@ -48,7 +52,14 @@
           "microphonePermission": "Hollow 需要使用麦克风进行语音对话"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Hollow 需要访问相册以便在对话中分享图片",
+          "cameraPermission": "Hollow 需要使用相机以便拍照分享"
+        }
+      ]
     ],
     "extra": {
       "eas": {

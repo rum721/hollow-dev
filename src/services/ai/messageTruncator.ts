@@ -1,17 +1,36 @@
-import type { ChatMessage } from './types';
+import type { ChatMessage, MessageContent } from './types';
+import { textOf } from './contentUtils';
 
 /**
  * Rough token estimation for a string.
  * English: ~4 chars per token. Chinese: ~1.5 chars per token.
  * We use a blend since Hollow supports both.
  */
-function estimateTokens(text: string): number {
+function estimateTokensFromText(text: string): number {
   // Count Chinese characters
   const chineseChars = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
   const otherChars = text.length - chineseChars;
 
   // Chinese: ~1.5 chars/token; English/other: ~4 chars/token
   return Math.ceil(chineseChars / 1.5 + otherChars / 4);
+}
+
+/**
+ * Estimate tokens for multimodal content.
+ * Text: uses character-based estimation.
+ * Images: ~85 tokens each (low-detail mode).
+ */
+function estimateTokens(content: MessageContent): number {
+  if (typeof content === 'string') return estimateTokensFromText(content);
+  let tokens = 0;
+  for (const block of content) {
+    if (block.type === 'text') {
+      tokens += estimateTokensFromText(block.text);
+    } else if (block.type === 'image') {
+      tokens += 85; // Low-detail image token cost
+    }
+  }
+  return tokens;
 }
 
 /**
@@ -42,9 +61,10 @@ export function truncateMessages(
     const msg = messages[i];
     let msgTokens = estimateTokens(msg.content);
 
-    // Truncate overly long individual messages
+    // Truncate overly long individual messages (only truncate text content)
     if (msgTokens > SINGLE_MSG_MAX) {
-      const truncatedContent = truncateContent(msg.content, SINGLE_MSG_MAX);
+      const textContent = textOf(msg.content);
+      const truncatedContent = truncateContent(textContent, SINGLE_MSG_MAX);
       const truncated: ChatMessage = { role: msg.role, content: truncatedContent };
       msgTokens = SINGLE_MSG_MAX;
 

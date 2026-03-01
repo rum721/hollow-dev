@@ -1,7 +1,8 @@
 import { streamOpenAICompatibleChat } from './openaiCompatibleClient';
 import { streamAnthropicChat } from './anthropicClient';
 import { getModelInfo, PROVIDER_BASE_URLS } from './models';
-import type { ChatMessage } from './types';
+import { textOf } from './contentUtils';
+import type { ChatMessage, MessageContent } from './types';
 import type { CoreProfile, ProfileCategory, EmotionTag } from '../../types/memory';
 
 // ── Extraction result types ──
@@ -49,6 +50,18 @@ const HIGH_VALUE_PATTERNS = [
 ];
 
 /**
+ * Check if recent messages contain image attachments.
+ * Image messages are automatically considered high-value for memory extraction.
+ */
+function hasImageInRecentMessages(
+  messages: { role: string; content: string; imageAttachments?: unknown[] }[],
+  fromIndex: number,
+): boolean {
+  const newMessages = messages.slice(fromIndex);
+  return newMessages.some((m) => m.role === 'user' && m.imageAttachments && m.imageAttachments.length > 0);
+}
+
+/**
  * Smart trigger: decides whether to run extraction based on content quality + timing.
  *
  * @param messages       All messages in the session
@@ -56,7 +69,7 @@ const HIGH_VALUE_PATTERNS = [
  * @param lastExtractionTime   Timestamp of last extraction (ms)
  */
 export function shouldExtractMemory(
-  messages: { role: string; content: string }[],
+  messages: { role: string; content: string; imageAttachments?: unknown[] }[],
   lastExtractionIndex: number,
   lastExtractionTime: number = 0,
 ): boolean {
@@ -72,6 +85,11 @@ export function shouldExtractMemory(
 
   // At least 2 new user messages before considering
   if (userMessages.length < 2) return false;
+
+  // Image messages are automatically high-value → trigger extraction
+  if (hasImageInRecentMessages(messages, lastExtractionIndex) && userMessages.length >= 2) {
+    return true;
+  }
 
   // Check for high-value content in the latest user message
   const latestUserMsg = userMessages[userMessages.length - 1]?.content || '';
@@ -188,7 +206,8 @@ ${existingContext}
 7. 每个 relationship 类型的记忆应该以人/动物的名字作为 entity_key
 8. 不要提取 AI 说的话，只提取用户透露的信息
 9. importance 范围 1-5，5 为最重要
-10. 只输出 JSON，不要有其他文字`;
+10. 只输出 JSON，不要有其他文字
+11. 如果对话中用户发送了图片且 AI 描述了图片内容，提取图片中的关键信息作为记忆（如图片中的人→relationship，地点/场景→event，物品/宠物→preference 或 relationship）。只保存文字描述，不保存图片本身`;
 }
 
 // ── Main extraction function ──
@@ -227,8 +246,12 @@ async function extractWithModel(
   apiKey: string,
 ): Promise<ExtractionStatus> {
   const recentMessages = messages.slice(-10);
+  // Extract plain text from each message (multimodal → text only for extraction)
   const conversationText = recentMessages
-    .map((m) => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content}`)
+    .map((m) => {
+      const text = textOf(m.content);
+      return `${m.role === 'user' ? '用户' : 'AI'}: ${text}`;
+    })
     .join('\n\n');
 
   const extractionMessages: ChatMessage[] = [

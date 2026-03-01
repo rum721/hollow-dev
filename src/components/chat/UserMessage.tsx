@@ -1,28 +1,63 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, Image } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing, borderRadius } from '../../theme';
 import { HollowText } from '../common/HollowText';
 import { formatTime } from '../../utils/formatters';
+import type { ImageAttachment } from '../../types/chat';
 
 interface Props {
   content: string;
   createdAt: string;
   onCopy?: () => void;
+  imageAttachments?: ImageAttachment[];
+  onImagePress?: (image: ImageAttachment) => void;
 }
 
-export function UserMessage({ content, createdAt, onCopy }: Props) {
+export function UserMessage({ content, createdAt, onCopy, imageAttachments, onImagePress }: Props) {
   const handleLongPress = async () => {
     await Clipboard.setStringAsync(content);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onCopy?.();
   };
 
+  const hasImages = imageAttachments && imageAttachments.length > 0;
+  const hasText = content.trim().length > 0;
+
   return (
     <TouchableOpacity onLongPress={handleLongPress} activeOpacity={0.8} style={styles.container}>
       <View style={styles.bubble}>
-        <Text style={styles.text}>{content}</Text>
+        {hasImages && imageAttachments.map((img, idx) => {
+          // Maintain aspect ratio, max width 200, max height 300
+          const ratio = img.width / img.height;
+          let displayWidth = Math.min(200, img.width);
+          let displayHeight = displayWidth / ratio;
+          if (displayHeight > 300) {
+            displayHeight = 300;
+            displayWidth = displayHeight * ratio;
+          }
+
+          return (
+            <TouchableOpacity
+              key={`img-${idx}`}
+              onPress={() => onImagePress?.(img)}
+              activeOpacity={0.85}
+              style={hasText ? styles.imageWithText : undefined}
+            >
+              <Image
+                source={{ uri: img.uri }}
+                style={{
+                  width: displayWidth,
+                  height: displayHeight,
+                  borderRadius: borderRadius.md,
+                }}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          );
+        })}
+        {hasText && <Text style={styles.text}>{content}</Text>}
       </View>
       <HollowText variant="label" style={styles.time}>
         {formatTime(createdAt)}
@@ -44,6 +79,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     maxWidth: '85%',
+  },
+  imageWithText: {
+    marginBottom: spacing.sm,
   },
   text: {
     color: colors.amberLight,

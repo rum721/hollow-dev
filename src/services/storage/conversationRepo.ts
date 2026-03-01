@@ -1,6 +1,6 @@
 import { getDatabase } from './database';
 import { encryptText, decryptText } from './encryption';
-import type { Session, Message, SessionStatus } from '../../types/chat';
+import type { Session, Message, SessionStatus, ImageAttachment } from '../../types/chat';
 
 // ─── Sessions ────────────────────────────────────────────
 
@@ -106,12 +106,15 @@ export async function getMessagesForSession(sessionId: string): Promise<Message[
 export async function insertMessage(msg: Message): Promise<void> {
   const db = await getDatabase();
   const encrypted = await encryptText(msg.content);
+  const imageJson = msg.imageAttachments && msg.imageAttachments.length > 0
+    ? JSON.stringify(msg.imageAttachments)
+    : null;
   await db.runAsync(
-    `INSERT INTO messages (id, session_id, role, content, model_used, token_count, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO messages (id, session_id, role, content, model_used, token_count, image_attachments, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [msg.id, msg.sessionId, msg.role, encrypted,
      msg.metadata?.model ?? null, msg.metadata?.tokensUsed ?? null,
-     msg.createdAt],
+     imageJson, msg.createdAt],
   );
 }
 
@@ -132,6 +135,15 @@ async function toSession(row: any): Promise<Session> {
 }
 
 async function toMessage(row: any): Promise<Message> {
+  let imageAttachments: ImageAttachment[] | undefined;
+  if (row.image_attachments) {
+    try {
+      imageAttachments = JSON.parse(row.image_attachments);
+    } catch {
+      imageAttachments = undefined;
+    }
+  }
+
   return {
     id: row.id,
     sessionId: row.session_id,
@@ -139,5 +151,6 @@ async function toMessage(row: any): Promise<Message> {
     content: await decryptText(row.content),
     createdAt: row.created_at,
     metadata: row.model_used ? { model: row.model_used, tokensUsed: row.token_count ?? undefined } : undefined,
+    imageAttachments,
   };
 }

@@ -1,5 +1,6 @@
 import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
 import { apiFetch } from './apiFetch';
+import { textOf } from './contentUtils';
 
 const MANUS_BASE = 'https://api.manus.ai';
 const POLL_INTERVAL = 2000; // 2 seconds
@@ -73,8 +74,10 @@ export async function streamManusChat(
   signal?: AbortSignal,
 ): Promise<string | undefined> {
   // Manus expects a single prompt string — only the last user message.
+  // Extract text from multimodal content (Manus doesn't support images).
   const userMessages = messages.filter((m) => m.role === 'user');
-  const lastUserMessage = userMessages[userMessages.length - 1]?.content ?? '';
+  const lastUserContent = userMessages[userMessages.length - 1]?.content;
+  const lastUserMessage = lastUserContent ? textOf(lastUserContent) : '';
 
   if (!lastUserMessage) {
     callbacks.onError(new Error('No message to send'));

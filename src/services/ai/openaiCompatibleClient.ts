@@ -1,6 +1,7 @@
 import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
 import { apiFetch } from './apiFetch';
 import { classifyApiError, classifyNetworkError } from './apiErrorClassifier';
+import { toOpenAIContent } from './contentUtils';
 
 /**
  * Generic OpenAI-compatible streaming chat client.
@@ -94,7 +95,7 @@ export async function streamOpenAICompatibleChat(
         [tokenLimitKey]: options?.maxTokens ?? 4096,
         stream: false,
         ...(isOpenAI ? {} : { store: options?.store ?? true }),
-        messages: fullMessages.map((m) => ({ role: m.role, content: m.content })),
+        messages: fullMessages.map((m) => ({ role: m.role, content: toOpenAIContent(m.content) })),
       }),
       signal,
     });
@@ -123,7 +124,7 @@ export async function streamOpenAICompatibleChat(
             [tokenLimitKey]: options?.maxTokens ?? 4096,
             stream: true,
             ...(isOpenAI ? {} : { store: options?.store ?? true }),
-            messages: fullMessages.map((m) => ({ role: m.role, content: m.content })),
+            messages: fullMessages.map((m) => ({ role: m.role, content: toOpenAIContent(m.content) })),
           }),
           signal,
         });

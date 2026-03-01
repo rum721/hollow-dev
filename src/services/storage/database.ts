@@ -114,6 +114,13 @@ async function initSchema(database: any): Promise<void> {
     // Column already exists — this is expected after first migration
   }
 
+  // Migration: add image_attachments column to messages (for image support)
+  try {
+    await database.execAsync(`ALTER TABLE messages ADD COLUMN image_attachments TEXT`);
+  } catch {
+    // Column already exists — expected after first migration
+  }
+
   // Migration: migrate memory_entries → core_profiles + episodic_memories (idempotent)
   await migrateMemoryEntries(database);
 }

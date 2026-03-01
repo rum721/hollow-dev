@@ -12,6 +12,7 @@ import { AIMessage } from '../../components/chat/AIMessage';
 import { TypingIndicator } from '../../components/chat/TypingIndicator';
 import { UpgradePrompt } from '../../components/chat/UpgradePrompt';
 import { ApiKeyGuide } from '../../components/chat/ApiKeyGuide';
+import { ImageViewer } from '../../components/chat/ImageViewer';
 import { HollowText } from '../../components/common/HollowText';
 import { useChatStore } from '../../store/useChatStore';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
@@ -25,7 +26,7 @@ import { summarizeSession } from '../../services/ai/sessionSummarizer';
 import { getSummaryBySessionId, insertSummary } from '../../services/storage/summaryRepo';
 import { colors, spacing } from '../../theme';
 import type { ChatStackParamList } from '../../types/navigation';
-import type { Message } from '../../types/chat';
+import type { Message, ImageAttachment } from '../../types/chat';
 import type { ChatMessage } from '../../services/ai/types';
 
 type RouteType = RouteProp<ChatStackParamList, 'ChatSession'>;
@@ -53,6 +54,7 @@ export function ChatSessionScreen() {
   const [dismissedApiGuide, setDismissedApiGuide] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const [viewerImage, setViewerImage] = useState<ImageAttachment | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCopy = useCallback(() => {
@@ -93,8 +95,8 @@ export function ChatSessionScreen() {
     return unsubscribe;
   }, [navigation, sessionId]);
 
-  const handleSend = async (text: string) => {
-    const result = await sendMessage(sessionId, text);
+  const handleSend = async (text: string, images?: ImageAttachment[]) => {
+    const result = await sendMessage(sessionId, text, images);
     if (result?.limitReached) {
       setShowUpgrade(true);
     }
@@ -103,6 +105,10 @@ export function ChatSessionScreen() {
   const handleVoiceMode = () => {
     navigation.navigate('VoiceMode', { sessionId });
   };
+
+  const handleImagePress = useCallback((image: ImageAttachment) => {
+    setViewerImage(image);
+  }, []);
 
   const displayMessages: (Message | { id: string; role: 'streaming'; content: string })[] = [
     ...messages,
@@ -113,7 +119,16 @@ export function ChatSessionScreen() {
 
   const renderMessage = ({ item }: { item: typeof displayMessages[number] }) => {
     if (item.role === 'user') {
-      return <UserMessage content={item.content} createdAt={(item as Message).createdAt} onCopy={handleCopy} />;
+      const msg = item as Message;
+      return (
+        <UserMessage
+          content={msg.content}
+          createdAt={msg.createdAt}
+          onCopy={handleCopy}
+          imageAttachments={msg.imageAttachments}
+          onImagePress={handleImagePress}
+        />
+      );
     }
     return (
       <AIMessage
@@ -246,6 +261,11 @@ export function ChatSessionScreen() {
           />
         </View>
       </View>
+      <ImageViewer
+        image={viewerImage}
+        visible={viewerImage !== null}
+        onClose={() => setViewerImage(null)}
+      />
     </KeyboardAvoidingView>
   );
 }

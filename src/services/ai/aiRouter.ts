@@ -6,6 +6,7 @@ import { buildSystemPrompt, getMaxTokensForStyle } from './promptBuilder';
 import { anonymizeMessages, shouldAnonymize } from './dataAnonymizer';
 import { getPremiumModelId } from './premiumRouter';
 import { classifyApiError } from './apiErrorClassifier';
+import { textOf } from './contentUtils';
 import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
 import type { ConversationStyle } from '../../types/settings';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
@@ -40,8 +41,8 @@ export async function sendChatMessage(
   let effectiveModelId = config.selectedModel;
 
   if (tier === 'premium') {
-    const lastUserMsg =
-      messages.filter((m) => m.role === 'user').pop()?.content || '';
+    const lastUserContent = messages.filter((m) => m.role === 'user').pop()?.content;
+    const lastUserMsg = lastUserContent ? textOf(lastUserContent) : '';
     const routedModelId = getPremiumModelId(lastUserMsg);
     const routedModelInfo = getModelInfo(routedModelId);
 
