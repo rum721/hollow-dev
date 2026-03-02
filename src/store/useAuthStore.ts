@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
+import { logError } from '../utils/errorLogger';
 
 interface AuthState {
   isOnboarded: boolean;
@@ -16,7 +17,7 @@ async function loadOnboarded(): Promise<boolean> {
     const SecureStore = await import('expo-secure-store');
     const val = await SecureStore.getItemAsync('hollow_onboarded');
     return val === 'true';
-  } catch { return false; }
+  } catch (e) { logError('auth', 'loadOnboarded')(e); return false; }
 }
 
 async function saveOnboarded(val: boolean): Promise<void> {
@@ -27,7 +28,7 @@ async function saveOnboarded(val: boolean): Promise<void> {
   try {
     const SecureStore = await import('expo-secure-store');
     await SecureStore.setItemAsync('hollow_onboarded', String(val));
-  } catch {}
+  } catch (e) { logError('auth', 'saveOnboarded')(e); }
 }
 
 export const useAuthStore = create<AuthState>((set) => ({

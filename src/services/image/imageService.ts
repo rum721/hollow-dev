@@ -10,6 +10,7 @@ import {
   EncodingType,
 } from 'expo-file-system/legacy';
 import { randomUUID } from 'expo-crypto';
+import { logError } from '../../utils/errorLogger';
 import type { ImageAttachment } from '../../types/chat';
 
 const IMAGE_DIR = `${documentDirectory}hollow-images/`;
@@ -102,7 +103,7 @@ export async function loadImageBase64(uri: string): Promise<string> {
 export async function deleteImageFile(uri: string): Promise<void> {
   try {
     await deleteAsync(uri, { idempotent: true });
-  } catch {
-    // Non-fatal
+  } catch (e) {
+    logError('image', 'deleteImageFile')(e);
   }
 }

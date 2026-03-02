@@ -153,16 +153,27 @@ export function parseHollowExport(content: string): {
         currentCategory = CATEGORY_REVERSE[catMatch[1]] || 'identity';
         continue;
       }
-      // Item: - **title**: content
-      const itemMatch = trimmed.match(/^- \*\*(.+?)\*\*:\s*(.+)$/);
-      if (itemMatch) {
-        const title = truncateField(itemMatch[1]);
+      // Item: - **title** <!-- key:xxx -->: content  (new format with embedded key)
+      // or:   - **title**: content                    (legacy format without key)
+      const itemWithKey = trimmed.match(/^- \*\*(.+?)\*\*\s*<!--\s*key:(.+?)\s*-->:\s*(.+)$/);
+      const itemLegacy = !itemWithKey ? trimmed.match(/^- \*\*(.+?)\*\*:\s*(.+)$/) : null;
+      if (itemWithKey) {
+        const title = truncateField(itemWithKey[1]);
+        const embeddedKey = itemWithKey[2].trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_\u4e00-\u9fff]/g, '');
+        profiles.push({
+          key: embeddedKey || `profile_${profiles.length}`,
+          category: currentCategory,
+          title,
+          content: truncateField(itemWithKey[3]),
+        });
+      } else if (itemLegacy) {
+        const title = truncateField(itemLegacy[1]);
         const key = title.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_\u4e00-\u9fff]/g, '');
         profiles.push({
           key: key || `profile_${profiles.length}`,
           category: currentCategory,
           title,
-          content: truncateField(itemMatch[2]),
+          content: truncateField(itemLegacy[2]),
         });
       }
     }

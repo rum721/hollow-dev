@@ -51,7 +51,8 @@ export function formatMemoryAsMarkdown(
       const label = PROFILE_CATEGORY_LABELS[category] || category;
       md += `### ${label}\n\n`;
       for (const item of items) {
-        md += `- **${item.title}**: ${item.content}\n`;
+        // Embed key as HTML comment for lossless re-import
+        md += `- **${item.title}** <!-- key:${item.key} -->: ${item.content}\n`;
       }
       md += `\n`;
     }

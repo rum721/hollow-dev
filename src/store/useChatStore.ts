@@ -56,7 +56,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         messages: { ...state.messages, [sessionId]: msgs },
       }));
-    } catch {}
+    } catch (e) {
+      logError('chat', 'loadMessages')(e);
+    }
   },
 
   createSession: async () => {

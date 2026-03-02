@@ -1,5 +1,7 @@
 import { getDatabase } from './database';
 import { encryptText, decryptText } from './encryption';
+import { deleteAsync } from 'expo-file-system/legacy';
+import { logError } from '../../utils/errorLogger';
 import type { Session, Message, SessionStatus, ImageAttachment } from '../../types/chat';
 
 // ─── Sessions ────────────────────────────────────────────
@@ -56,6 +58,8 @@ export async function updateSessionTitle(sessionId: string, title: string): Prom
 
 export async function deleteSessionPermanently(id: string): Promise<void> {
   const db = await getDatabase();
+  // Clean up image files before deleting DB records
+  await cleanupSessionImages(db, id);
   await db.runAsync('DELETE FROM messages WHERE session_id = ?', [id]);
   await db.runAsync('DELETE FROM sessions WHERE id = ?', [id]);
 }
@@ -74,6 +78,7 @@ export async function deleteSessionsOlderThan(days: number): Promise<number> {
     [cutoff],
   )) as { id: string }[];
   for (const row of rows) {
+    await cleanupSessionImages(db, row.id);
     await db.runAsync('DELETE FROM messages WHERE session_id = ?', [row.id]);
     await db.runAsync('DELETE FROM sessions WHERE id = ?', [row.id]);
   }
@@ -107,7 +112,7 @@ export async function insertMessage(msg: Message): Promise<void> {
   const db = await getDatabase();
   const encrypted = await encryptText(msg.content);
   const imageJson = msg.imageAttachments && msg.imageAttachments.length > 0
-    ? JSON.stringify(msg.imageAttachments)
+    ? await encryptText(JSON.stringify(msg.imageAttachments))
     : null;
   await db.runAsync(
     `INSERT INTO messages (id, session_id, role, content, model_used, token_count, image_attachments, created_at)
@@ -138,7 +143,9 @@ async function toMessage(row: any): Promise<Message> {
   let imageAttachments: ImageAttachment[] | undefined;
   if (row.image_attachments) {
     try {
-      imageAttachments = JSON.parse(row.image_attachments);
+      // Decrypt then parse (supports both encrypted and legacy plaintext JSON)
+      const decrypted = await decryptText(row.image_attachments);
+      imageAttachments = JSON.parse(decrypted);
     } catch {
       imageAttachments = undefined;
     }
@@ -153,4 +160,33 @@ async function toMessage(row: any): Promise<Message> {
     metadata: row.model_used ? { model: row.model_used, tokensUsed: row.token_count ?? undefined } : undefined,
     imageAttachments,
   };
+}
+
+// ─── Image lifecycle cleanup ─────────────────────────────
+
+/**
+ * Delete all image files associated with a session.
+ * Called before DB records are removed to prevent orphaned files.
+ */
+async function cleanupSessionImages(db: any, sessionId: string): Promise<void> {
+  try {
+    const rows = (await db.getAllAsync(
+      'SELECT image_attachments FROM messages WHERE session_id = ? AND image_attachments IS NOT NULL',
+      [sessionId],
+    )) as { image_attachments: string }[];
+
+    for (const row of rows) {
+      try {
+        const decrypted = await decryptText(row.image_attachments);
+        const attachments: ImageAttachment[] = JSON.parse(decrypted);
+        for (const img of attachments) {
+          await deleteAsync(img.uri, { idempotent: true }).catch(() => {});
+        }
+      } catch {
+        // Skip malformed entries — non-fatal
+      }
+    }
+  } catch (e) {
+    logError('storage', 'cleanupSessionImages')(e);
+  }
 }

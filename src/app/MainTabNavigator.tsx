@@ -14,6 +14,7 @@ import { useResponsive } from '../hooks/useResponsive';
 import { useChatStore } from '../store/useChatStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { shouldSendGreeting, markGreetingSent, generateGreeting } from '../services/greeting/dailyGreeting';
+import { logError } from '../utils/errorLogger';
 import type { MainTabParamList } from '../types/navigation';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -48,7 +49,9 @@ export function MainTabNavigator() {
 
         chatState.addAssistantMessage(latestSession.id, greeting);
         await markGreetingSent();
-      } catch {}
+      } catch (e) {
+        logError('greeting', 'checkGreeting')(e);
+      }
     };
 
     // Check on first mount (slight delay so sessions are loaded)

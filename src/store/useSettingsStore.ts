@@ -31,25 +31,25 @@ async function loadApiKeys(): Promise<Record<string, string>> {
     try {
       const raw = localStorage.getItem('hollow_api_keys');
       return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
+    } catch (e) { logError('settings', 'loadApiKeys:web')(e); return {}; }
   }
   try {
     const SecureStore = await import('expo-secure-store');
     const raw = await SecureStore.getItemAsync('hollow_api_keys');
     return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+  } catch (e) { logError('settings', 'loadApiKeys')(e); return {}; }
 }
 
 async function saveApiKeys(keys: Record<string, string>): Promise<void> {
   const json = JSON.stringify(keys);
   if (Platform.OS === 'web') {
-    try { localStorage.setItem('hollow_api_keys', json); } catch {}
+    try { localStorage.setItem('hollow_api_keys', json); } catch (e) { logError('settings', 'saveApiKeys:web')(e); }
     return;
   }
   try {
     const SecureStore = await import('expo-secure-store');
     await SecureStore.setItemAsync('hollow_api_keys', json);
-  } catch {}
+  } catch (e) { logError('settings', 'saveApiKeys')(e); }
 }
 
 function persist(key: string, value: string) {
@@ -83,7 +83,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         apiKeys,
         isLoaded: true,
       });
-    } catch {
+    } catch (e) {
+      logError('settings', 'loadSettings')(e);
       set({ isLoaded: true });
     }
   },

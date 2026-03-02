@@ -37,7 +37,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         todayUsage,
         isLoaded: true,
       });
-    } catch {
+    } catch (e) {
+      logError('subscription', 'loadSubscription')(e);
       set({ isLoaded: true });
     }
   },
@@ -66,13 +67,17 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     try {
       const newCount = await usageRepo.incrementTodayUsage();
       set({ todayUsage: newCount });
-    } catch {}
+    } catch (e) {
+      logError('subscription', 'incrementUsage')(e);
+    }
   },
 
   refreshUsage: async () => {
     try {
       const todayUsage = await usageRepo.getTodayUsage();
       set({ todayUsage });
-    } catch {}
+    } catch (e) {
+      logError('subscription', 'refreshUsage')(e);
+    }
   },
 }));
