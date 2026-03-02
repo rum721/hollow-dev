@@ -30,6 +30,128 @@ export type ExtractionStatus =
   | { status: 'skipped'; reason: string }  // Skipped (no model, no key, etc.)
   | { status: 'error'; error: string };    // API or parse error
 
+// ── Entity key normalization ──────────────────────────────────────────
+// Known entity aliases: maps various AI-generated keys to canonical form.
+// This prevents duplicates like 安安/an_an, 小黑猫墨墨/pet_momo.
+
+const ENTITY_KEY_ALIASES: Record<string, string> = {
+  // People
+  '安安': 'an_an',
+  'an_an': 'an_an',
+  'anan': 'an_an',
+  '心动的女生': 'an_an',
+  '正在了解的女生': 'an_an',
+  '生病的朋友': 'an_an',
+  'relationship_care_value': 'an_an',
+  'communication_style': 'an_an',
+  // Pets
+  '墨墨': 'pet_momo',
+  'momo': 'pet_momo',
+  '小黑猫墨墨': 'pet_momo',
+  'pet_momo': 'pet_momo',
+  '小猫的名字': 'pet_momo',
+  '粽子': 'pet_zongzi',
+  'zongzi': 'pet_zongzi',
+  'pet_zongzi': 'pet_zongzi',
+  // Identity
+  '用户身份': 'user_identity',
+  '用户基本信息': 'user_identity',
+  'user_identity': 'user_identity',
+  // Career
+  '用户职业经历': 'career_history',
+  'career_history': 'career_history',
+  // Financial
+  '用户资产状况': 'financial_status',
+  '用户资产状况补充': 'financial_status',
+  'financial_status': 'financial_status',
+  // AI Product
+  '正在开发的AI产品': 'ai_product_hollow',
+  'product_ai_memory': 'ai_product_hollow',
+  'ai_product_hollow': 'ai_product_hollow',
+  // AI Tool
+  '小龙虾和manus': 'ai_tool_preference',
+  'ai_tool_preference': 'ai_tool_preference',
+  // Conversation Style
+  'AI对话风格偏好': 'ai_conversation_style',
+  'ai对话风格偏好': 'ai_conversation_style',
+  'ai_tone_feedback': 'ai_conversation_style',
+  'ai_conversation_style': 'ai_conversation_style',
+  // Personality
+  '用户自我认知': 'personality_introvert',
+  'personality_introvert': 'personality_introvert',
+  // Emotional Growth
+  '感情态度': 'emotional_growth',
+  '感情中的行为模式': 'emotional_growth',
+  '对爱的认知': 'emotional_growth',
+  'emotional_growth': 'emotional_growth',
+  // Expression Style
+  '表达欲的提升': 'expression_style',
+  '倾向与ai交流内心感受': 'expression_style',
+  '社交习惯': 'expression_style',
+  '输出自我的变化': 'expression_style',
+  'expression_style': 'expression_style',
+};
+
+/** Simple string hash for fallback key generation. */
+function hashCode(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Normalize an entity key from AI output to a canonical English snake_case form.
+ * 1. Exact alias match
+ * 2. Fuzzy alias match (substring containment)
+ * 3. Already valid English key → pass through
+ * 4. Strip non-English chars
+ * 5. Hash-based fallback
+ */
+export function normalizeEntityKey(rawKey: string): string {
+  const trimmed = rawKey.trim().toLowerCase();
+
+  // 1. Exact alias match
+  if (ENTITY_KEY_ALIASES[rawKey]) return ENTITY_KEY_ALIASES[rawKey];
+  if (ENTITY_KEY_ALIASES[trimmed]) return ENTITY_KEY_ALIASES[trimmed];
+
+  // 2. Fuzzy match: check if rawKey contains or is contained by a known alias
+  for (const [alias, canonical] of Object.entries(ENTITY_KEY_ALIASES)) {
+    if (rawKey.includes(alias) || alias.includes(rawKey)) {
+      return canonical;
+    }
+  }
+
+  // 3. Already a valid English snake_case key → return as-is
+  if (/^[a-z][a-z0-9_]*$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // 4. Try to extract the English part
+  const englishPart = trimmed
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  if (englishPart.length >= 3) return englishPart;
+
+  // 5. Hash-based fallback for pure-Chinese keys
+  return `mem_${hashCode(rawKey).toString(36)}`;
+}
+
+/**
+ * Clean content of raw metadata prefixes that leak from prompt context.
+ * Strips patterns like: [key: xxx] (category) title: ...
+ */
+export function cleanContent(content: string): string {
+  return content
+    .replace(/^\[key:\s*[^\]]*\]\s*\([^)]*\)\s*[^:]*:\s*/i, '')
+    .replace(/^\[key:\s*[^\]]*\]\s*/i, '')
+    .trim();
+}
+
 // ── High-value content patterns for smart triggering ──
 
 const HIGH_VALUE_PATTERNS = [
@@ -145,69 +267,77 @@ function scoreMessageQuality(content: string): number {
 // ── Extraction prompt builder ──
 
 function buildExtractionPrompt(existingProfiles: CoreProfile[]): string {
+  // Format existing memories WITHOUT copyable metadata prefixes.
+  // Use a clean tabular format so the AI sees entity_key but doesn't copy it into content.
   let existingContext = '（暂无已有记忆）';
   if (existingProfiles.length > 0) {
     existingContext = existingProfiles
-      .map((p) => `[key: ${p.key}] (${p.category}) ${p.title}: ${p.content}`)
+      .map((p) => `- entity_key=${p.key} | ${p.category} | ${p.title}: ${cleanContent(p.content)}`)
       .join('\n');
   }
 
-  return `你是 Hollow 的记忆管理系统。你的任务是从对话中提取值得长期记忆的信息，并与已有记忆进行比对。
+  return `你是 Hollow 的记忆管理系统。从对话中提取值得长期记忆的信息，并与已有记忆比对，决定新增、更新或跳过。
 
 ## 已有记忆
 ${existingContext}
 
-## 任务
-1. 从对话中识别值得记忆的信息
-2. 与已有记忆比对，判断每条信息是新增还是更新
-3. 按以下 JSON 格式输出
+## 最近对话
+（见用户消息）
 
-## 输出格式（严格 JSON，不要有其他文字）
+## 输出格式（严格 JSON，不要有任何其他文字）
 {
   "has_valuable_info": true,
   "operations": [
     {
       "action": "INSERT",
-      "entity_key": "唯一英文标识（小写下划线，如 an_an, pet_momo, career）",
-      "category": "identity/relationship/preference/trait/event",
-      "title": "显示标题（中文，简洁）",
-      "content": "完整内容（中文，一段话，包含所有已知信息）",
+      "entity_key": "英文小写下划线标识符",
+      "category": "identity|relationship|preference|trait|event",
+      "title": "简洁中文标题",
+      "content": "完整描述，一段话，包含所有已知信息",
       "emotion": "happy/sad/anxious/angry/excited/calm/frustrated/hopeful/neutral",
       "importance": 3
     },
     {
       "action": "UPDATE",
-      "entity_key": "要更新的已有记忆的 key",
-      "content": "合并后的完整内容（保留旧信息 + 补充新信息）",
+      "entity_key": "已有记忆的 entity_key",
+      "content": "合并旧信息+新信息后的完整描述",
       "reason": "简述更新原因"
     },
     {
       "action": "SKIP",
-      "entity_key": "已有记忆的 key",
-      "reason": "为什么跳过"
+      "reason": "为什么没有新信息值得提取"
     }
   ]
 }
 
 ## Category 定义
-- identity: 姓名、年龄、性别、城市、职业、教育等客观身份信息
-- relationship: 重要的人或动物（家人、朋友、伴侣、宠物），包括关系描述和互动细节
-- preference: 兴趣爱好、饮食偏好、沟通风格偏好、审美偏好等
-- trait: 性格特征、价值观、行为模式、心理特点、自我认知的变化
-- event: 具体的事件或经历（有时间性，会衰减）
+- identity: 姓名、年龄、性别、城市、职业、教育、资产等客观身份信息
+- relationship: 重要的人或动物（家人、朋友、伴侣、宠物），以实体名字为中心，一个人/动物一条记录
+- preference: 兴趣爱好、饮食偏好、沟通风格偏好、审美偏好
+- trait: 性格特征、价值观、行为模式、心理特点、自我认知变化
+- event: 具体事件或经历（有时间性）
 
-## 关键规则
-1. 同一个实体（人/宠物/事物）只能有一个 entity_key，所有相关信息合并到一条记录中
-2. 如果新信息是对已有记忆的补充，使用 UPDATE 而不是 INSERT
-3. 如果新信息与已有记忆完全重复，使用 SKIP
-4. UPDATE 时，content 必须是合并后的完整版本，不是增量
-5. 不要提取无意义的信息（如"用户说了你好"、"用户回复了嗯"）
-6. event 类型的记忆要包含具体的时间和情绪
-7. 每个 relationship 类型的记忆应该以人/动物的名字作为 entity_key
-8. 不要提取 AI 说的话，只提取用户透露的信息
-9. importance 范围 1-5，5 为最重要
-10. 只输出 JSON，不要有其他文字
-11. 如果对话中用户发送了图片且 AI 描述了图片内容，提取图片中的关键信息作为记忆（如图片中的人→relationship，地点/场景→event，物品/宠物→preference 或 relationship）。只保存文字描述，不保存图片本身`;
+## entity_key 命名规则（极其重要，必须严格遵守）
+1. 必须是英文小写 + 下划线，如 an_an, pet_momo, career_history
+2. 人名用拼音：安安→an_an, 墨墨→momo, 粽子→zongzi
+3. 宠物加 pet_ 前缀：pet_momo, pet_zongzi
+4. 同一个实体永远用同一个 key，不要创建新 key
+5. 参考已有记忆中的 entity_key，优先复用而不是新建
+6. 绝对不要用中文作为 entity_key
+
+## 合并规则
+1. 关于同一个人/动物的所有信息必须合并到一条记录（如安安的关系进展、沟通风格、家庭背景、生病状况，全部合并到 entity_key=an_an 这一条）
+2. UPDATE 时 content 必须是合并后的完整版本，包含旧信息+新信息，不是增量
+3. 如果对话中没有新的有价值信息，只输出一个 SKIP 操作
+4. 不要提取无意义的信息（如"用户说了你好"、"用户表示同意"）
+5. event 类型每条应该是独立的、有时间标记的具体事件
+6. event 类型：同一天内关于同一主题的事件应合并为一条
+7. 不要提取 AI 说的话，只提取用户透露的信息
+8. content 字段只写纯描述文字，不要包含 entity_key、category、标签等元数据
+9. importance 评分标准：5=人生重大转折，4=重要情感/关系进展，3=日常有价值信息，2=普通记录，1=不该提取
+10. 如果对话中用户发送了图片且 AI 描述了图片内容，提取图片中的关键信息作为记忆
+
+只输出 JSON，不要有任何其他文字。`;
 }
 
 // ── Main extraction function ──
@@ -308,6 +438,18 @@ async function extractWithModel(
 const VALID_CATEGORIES = ['identity', 'relationship', 'preference', 'trait', 'event'] as const;
 const VALID_EMOTIONS: EmotionTag[] = ['happy', 'sad', 'anxious', 'angry', 'excited', 'calm', 'frustrated', 'hopeful', 'neutral'];
 
+/** Map old/wrong category names to canonical V2 categories. */
+function normalizeCategoryName(cat: string | undefined): string | undefined {
+  if (!cat) return undefined;
+  const MAP: Record<string, string> = {
+    'people': 'relationship',
+    'events': 'event',
+    'emotions': 'trait',
+    'preferences': 'preference',
+  };
+  return MAP[cat] || (VALID_CATEGORIES.includes(cat as any) ? cat : undefined);
+}
+
 function parseExtractionResult(text: string): ExtractionResult | null {
   try {
     // Find the JSON object in the response
@@ -318,18 +460,25 @@ function parseExtractionResult(text: string): ExtractionResult | null {
     if (!parsed || parsed.has_valuable_info === false) return null;
 
     const operations: MemoryOperation[] = (parsed.operations || [])
-      .filter((item: any) =>
-        item &&
-        typeof item.entity_key === 'string' &&
-        item.entity_key.length > 0 &&
-        ['INSERT', 'UPDATE', 'SKIP'].includes(item.action),
-      )
+      .filter((item: any) => {
+        if (!item || !item.action) return false;
+        if (item.action === 'SKIP') return true;
+        if (item.action === 'INSERT') {
+          return item.entity_key && item.category && item.title && item.content;
+        }
+        if (item.action === 'UPDATE') {
+          return item.entity_key && item.content;
+        }
+        return false;
+      })
       .map((item: any) => ({
         action: item.action as 'INSERT' | 'UPDATE' | 'SKIP',
-        entityKey: item.entity_key.toLowerCase().replace(/\s+/g, '_'),
-        category: VALID_CATEGORIES.includes(item.category) ? item.category : undefined,
+        // Apply normalizeEntityKey to force consistent key format
+        entityKey: item.entity_key ? normalizeEntityKey(item.entity_key) : '',
+        category: normalizeCategoryName(item.category) as ProfileCategory | 'event' | undefined,
         title: item.title || undefined,
-        content: item.content || undefined,
+        // Apply cleanContent to strip any metadata prefixes from AI output
+        content: item.content ? cleanContent(item.content) : undefined,
         emotion: VALID_EMOTIONS.includes(item.emotion) ? item.emotion : undefined,
         importance: item.importance ? Math.max(1, Math.min(5, Number(item.importance))) : undefined,
         reason: item.reason || undefined,

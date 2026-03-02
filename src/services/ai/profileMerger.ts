@@ -1,5 +1,6 @@
 import { upsertProfile } from '../storage/profileRepo';
 import { insertEpisode, findSimilarEpisode } from '../storage/episodeRepo';
+import { normalizeEntityKey, cleanContent } from './memoryExtractor';
 import type { ExtractionResult, MemoryOperation } from './memoryExtractor';
 import type { ProfileCategory } from '../../types/memory';
 
@@ -42,12 +43,16 @@ export async function mergeExtractionResult(
         ? (op.category as ProfileCategory)
         : 'identity';
 
+    // Double-normalize key and clean content at merge time (defense in depth)
+    const normalizedKey = normalizeEntityKey(op.entityKey);
+    const cleanedContent = cleanContent(op.content);
+
     try {
       await upsertProfile({
-        key: op.entityKey,
+        key: normalizedKey,
         category,
-        title: op.title || op.entityKey,
-        content: op.content,
+        title: op.title || normalizedKey,
+        content: cleanedContent,
         confidence: op.action === 'UPDATE' ? 0.7 : 0.5,
         mentionCount: 1,
       });

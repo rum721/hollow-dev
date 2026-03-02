@@ -123,6 +123,11 @@ async function initSchema(database: any): Promise<void> {
 
   // Migration: migrate memory_entries → core_profiles + episodic_memories (idempotent)
   await migrateMemoryEntries(database);
+
+  // Migration: normalize keys + deduplicate + clean content in core_profiles (idempotent)
+  // Deferred import to avoid circular dependency at module level
+  const { cleanupAndDeduplicateProfiles } = await import('./profileRepo');
+  await cleanupAndDeduplicateProfiles();
 }
 
 async function migrateMemoryEntries(database: any): Promise<void> {

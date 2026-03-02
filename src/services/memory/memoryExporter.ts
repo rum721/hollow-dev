@@ -1,14 +1,15 @@
 import { cacheDirectory, writeAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { cleanContent } from '../ai/memoryExtractor';
 import type { CoreProfile, EpisodicMemory, SessionSummary } from '../../types/memory';
 
-// Category labels (bilingual)
-const PROFILE_CATEGORY_LABELS: Record<string, string> = {
-  identity: '身份信息',
-  relationship: '人际关系',
-  preference: '偏好习惯',
-  trait: '性格特征',
-};
+// Category labels (ordered by display priority)
+const PROFILE_CATEGORY_CONFIG: Array<{ key: string; label: string; aliases: string[] }> = [
+  { key: 'identity', label: '基本信息', aliases: ['identity'] },
+  { key: 'trait', label: '性格特点', aliases: ['trait', 'emotions'] },
+  { key: 'relationship', label: '重要的人', aliases: ['relationship', 'people'] },
+  { key: 'preference', label: '偏好习惯', aliases: ['preference', 'preferences'] },
+];
 
 const EMOTION_LABELS: Record<string, string> = {
   happy: '开心',
@@ -34,25 +35,37 @@ export function formatMemoryAsMarkdown(
   md += `> 此文件可以重新导入 Hollow，也可以作为个人备份保留\n\n`;
   md += `---\n\n`;
 
-  // Section 1: Core Profiles
+  // Section 1: Core Profiles (ordered by category)
   md += `## 核心画像\n\n`;
 
-  const grouped: Record<string, CoreProfile[]> = {};
-  for (const p of profiles) {
-    const cat = p.category || 'identity';
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(p);
-  }
-
-  if (Object.keys(grouped).length === 0) {
+  if (profiles.length === 0) {
     md += `*暂无画像数据*\n\n`;
   } else {
-    for (const [category, items] of Object.entries(grouped)) {
-      const label = PROFILE_CATEGORY_LABELS[category] || category;
-      md += `### ${label}\n\n`;
-      for (const item of items) {
+    for (const config of PROFILE_CATEGORY_CONFIG) {
+      const entries = profiles.filter((p) => config.aliases.includes(p.category));
+      if (entries.length === 0) continue;
+
+      md += `### ${config.label}\n\n`;
+      // Sort by mentionCount desc (most referenced = most important)
+      entries.sort((a, b) => b.mentionCount - a.mentionCount);
+
+      for (const item of entries) {
+        // Clean content of any raw metadata leakage before export
+        const cleaned = cleanContent(item.content);
         // Embed key as HTML comment for lossless re-import
-        md += `- **${item.title}** <!-- key:${item.key} -->: ${item.content}\n`;
+        md += `- **${item.title}** <!-- key:${item.key} -->: ${cleaned}\n`;
+      }
+      md += `\n`;
+    }
+
+    // Catch any profiles with unrecognized categories
+    const knownAliases = PROFILE_CATEGORY_CONFIG.flatMap((c) => c.aliases);
+    const uncategorized = profiles.filter((p) => !knownAliases.includes(p.category));
+    if (uncategorized.length > 0) {
+      md += `### 其他\n\n`;
+      for (const item of uncategorized) {
+        const cleaned = cleanContent(item.content);
+        md += `- **${item.title}** <!-- key:${item.key} -->: ${cleaned}\n`;
       }
       md += `\n`;
     }

@@ -1,6 +1,8 @@
 import { randomUUID } from 'expo-crypto';
 import { getDatabase } from './database';
 import { encryptText, decryptText } from './encryption';
+import { normalizeEntityKey, cleanContent } from '../ai/memoryExtractor';
+import { logError } from '../../utils/errorLogger';
 import type { CoreProfile, ProfileCategory } from '../../types/memory';
 
 export async function getAllProfiles(): Promise<CoreProfile[]> {
@@ -160,4 +162,98 @@ async function toProfile(row: any): Promise<CoreProfile> {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+// ── One-time migration: normalize keys, deduplicate, clean content ──
+
+/** Correct category for known entity keys. */
+const CATEGORY_FIXES: Record<string, ProfileCategory> = {
+  financial_status: 'identity',
+  user_identity: 'identity',
+  career_history: 'identity',
+  ai_product_hollow: 'identity',
+  personality_introvert: 'trait',
+  emotional_growth: 'trait',
+  expression_style: 'trait',
+  an_an: 'relationship',
+  pet_momo: 'relationship',
+  pet_zongzi: 'relationship',
+  ai_tool_preference: 'preference',
+  ai_conversation_style: 'preference',
+};
+
+/**
+ * One-time cleanup migration for core_profiles:
+ * 1. Normalize all entity keys (中文→英文, inconsistent→canonical)
+ * 2. Deduplicate entries with the same normalized key (keep longest content)
+ * 3. Clean content of metadata prefixes ([key: xxx] (cat) title: ...)
+ * 4. Fix category assignments for known entities
+ *
+ * Safe to run multiple times (idempotent after first run).
+ */
+export async function cleanupAndDeduplicateProfiles(): Promise<void> {
+  const db = await getDatabase();
+
+  try {
+    // Check if cleanup already done via settings flag
+    const flag = (await db.getFirstAsync(
+      "SELECT value FROM settings WHERE key = 'profile_cleanup_v1'",
+    )) as { value: string } | null;
+    if (flag) return; // Already cleaned up
+
+    // Read all profiles (decrypted)
+    const allProfiles = await getAllProfiles();
+    if (allProfiles.length === 0) {
+      // Mark as done even if empty
+      await db.runAsync(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('profile_cleanup_v1', '1')",
+      );
+      return;
+    }
+
+    // Group by normalized key
+    const grouped = new Map<string, CoreProfile[]>();
+    for (const p of allProfiles) {
+      const normalizedKey = normalizeEntityKey(p.key);
+      if (!grouped.has(normalizedKey)) grouped.set(normalizedKey, []);
+      grouped.get(normalizedKey)!.push(p);
+    }
+
+    // Process each group
+    for (const [normalizedKey, profiles] of grouped) {
+      // Sort by content length desc (longest = most complete)
+      profiles.sort((a, b) => b.content.length - a.content.length);
+
+      const keeper = profiles[0];
+      const cleaned = cleanContent(keeper.content);
+      const correctCategory = CATEGORY_FIXES[normalizedKey] || keeper.category;
+
+      // Update the keeper: normalize key, clean content, fix category
+      const needsUpdate =
+        keeper.key !== normalizedKey ||
+        keeper.content !== cleaned ||
+        keeper.category !== correctCategory;
+
+      if (needsUpdate) {
+        const encrypted = await encryptText(cleaned);
+        await db.runAsync(
+          `UPDATE core_profiles SET key = ?, content = ?, category = ?, updated_at = datetime('now') WHERE id = ?`,
+          [normalizedKey, encrypted, correctCategory, keeper.id],
+        );
+      }
+
+      // Delete duplicates (all except the keeper)
+      for (let i = 1; i < profiles.length; i++) {
+        await db.runAsync('DELETE FROM core_profiles WHERE id = ?', [profiles[i].id]);
+      }
+    }
+
+    // Mark cleanup as done
+    await db.runAsync(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('profile_cleanup_v1', '1')",
+    );
+  } catch (e) {
+    logError('memory', 'cleanupAndDeduplicateProfiles')(e);
+    // Non-fatal: old data remains, cleanup will retry next launch
+  }
 }

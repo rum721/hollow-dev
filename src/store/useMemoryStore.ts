@@ -6,6 +6,7 @@ import * as profileRepo from '../services/storage/profileRepo';
 import * as episodeRepo from '../services/storage/episodeRepo';
 import * as summaryRepo from '../services/storage/summaryRepo';
 import { expandWithSynonyms, extractKeywords, EMOTION_LABELS } from '../services/ai/synonymDict';
+import { cleanContent } from '../services/ai/memoryExtractor';
 import { logError } from '../utils/errorLogger';
 
 /** Cache TTL: 5 minutes */
@@ -241,27 +242,27 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
 
     // Prefer V2 profiles if available, fall back to legacy
     const allEntries: FormattedEntry[] = profiles.length > 0
-      ? profiles.map((p) => ({ category: p.category, title: p.title, content: p.content, importance: 3, mentionCount: p.mentionCount }))
-      : memories.map((m) => ({ category: m.category, title: m.title, content: m.content, importance: 3, mentionCount: 1 }));
+      ? profiles.map((p) => ({ category: p.category, title: p.title, content: cleanContent(p.content), importance: 3, mentionCount: p.mentionCount }))
+      : memories.map((m) => ({ category: m.category, title: m.title, content: cleanContent(m.content), importance: 3, mentionCount: 1 }));
 
     if (allEntries.length === 0) return '';
 
     // Category labels for display (Chinese, ordered)
     const CATEGORY_LABELS: Record<string, string> = {
-      identity: '\u57FA\u672C\u4FE1\u606F',      // 基本信息
-      relationship: '\u91CD\u8981\u7684\u4EBA',    // 重要的人
-      preference: '\u504F\u597D\u4E60\u60EF',      // 偏好习惯
-      trait: '\u6027\u683C\u7279\u70B9',           // 性格特点
-      event: '\u8FD1\u671F\u4E8B\u4EF6',          // 近期事件
+      identity: '基本信息',
+      relationship: '重要的人',
+      preference: '偏好习惯',
+      trait: '性格特点',
+      event: '近期事件',
       // Legacy category mappings
-      people: '\u91CD\u8981\u7684\u4EBA',
-      events: '\u8FD1\u671F\u4E8B\u4EF6',
-      emotions: '\u60C5\u7EEA\u4F53\u9A8C',       // 情绪体验
-      preferences: '\u504F\u597D\u4E60\u60EF',
+      people: '重要的人',
+      events: '近期事件',
+      emotions: '情绪体验',
+      preferences: '偏好习惯',
     };
 
     // Fixed display order
-    const ORDER = ['\u57FA\u672C\u4FE1\u606F', '\u6027\u683C\u7279\u70B9', '\u91CD\u8981\u7684\u4EBA', '\u504F\u597D\u4E60\u60EF', '\u8FD1\u671F\u4E8B\u4EF6', '\u60C5\u7EEA\u4F53\u9A8C'];
+    const ORDER = ['基本信息', '性格特点', '重要的人', '偏好习惯', '近期事件', '情绪体验'];
 
     const grouped: Record<string, typeof allEntries> = {};
     allEntries.forEach((e) => {
@@ -278,7 +279,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       // Sort by importance desc, then mention count desc
       entries.sort((a, b) => (b.importance || 3) - (a.importance || 3) || (b.mentionCount || 1) - (a.mentionCount || 1));
       entries.forEach((e) => {
-        ctx += `- ${e.title}: ${e.content}\n`;
+        ctx += `- **${e.title}**: ${e.content}\n`;
       });
     }
 
