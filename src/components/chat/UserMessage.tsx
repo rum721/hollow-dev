@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing, borderRadius } from '../../theme';
 import { HollowText } from '../common/HollowText';
+import { EncryptedImage } from './EncryptedImage';
 import { formatTime } from '../../utils/formatters';
 import type { ImageAttachment } from '../../types/chat';
 
@@ -45,13 +46,12 @@ export function UserMessage({ content, createdAt, onCopy, imageAttachments, onIm
               activeOpacity={0.85}
               style={hasText ? styles.imageWithText : undefined}
             >
-              <Image
-                source={{ uri: img.uri }}
-                style={{
-                  width: displayWidth,
-                  height: displayHeight,
-                  borderRadius: borderRadius.md,
-                }}
+              <EncryptedImage
+                uri={img.uri}
+                mimeType={img.mimeType}
+                width={displayWidth}
+                height={displayHeight}
+                borderRadius={borderRadius.md}
                 resizeMode="cover"
               />
             </TouchableOpacity>

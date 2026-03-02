@@ -3,8 +3,8 @@
  *
  * Replaces silent `.catch(() => {})` patterns with structured logging.
  * In development, errors are printed to the console.
- * In production, errors are buffered in memory and can be retrieved
- * for diagnostics (future: ship to Sentry / Crashlytics).
+ * In production, error messages are sanitized to remove user data
+ * before buffering (future: ship to Sentry / Crashlytics).
  *
  * Usage:
  *   someAsyncOp().catch(logError('chat', 'insertMessage'));
@@ -24,6 +24,24 @@ interface ErrorEntry {
 const errorBuffer: ErrorEntry[] = [];
 
 /**
+ * Sanitize error messages in production to prevent user data leakage.
+ * Strips potential PII: file paths, base64 blobs, API keys, long content.
+ */
+function sanitizeMessage(message: string): string {
+  if (__DEV__) return message; // Full detail in development
+
+  return message
+    // Redact base64 blobs (>20 chars of base64-like content)
+    .replace(/[A-Za-z0-9+/=]{20,}/g, '[REDACTED_DATA]')
+    // Redact file paths
+    .replace(/\/[\w./\-]+\.(jpg|jpeg|png|enc|json|md|txt)/gi, '[REDACTED_PATH]')
+    // Redact potential API keys (sk-..., key-..., etc.)
+    .replace(/\b(sk|key|token|api)[_-][A-Za-z0-9]{8,}/gi, '[REDACTED_KEY]')
+    // Truncate remaining long messages (may contain user content in error payloads)
+    .slice(0, 200);
+}
+
+/**
  * Log an error with a domain/operation tag.
  * Returns a function suitable for use in `.catch()`.
  *
@@ -32,7 +50,8 @@ const errorBuffer: ErrorEntry[] = [];
  */
 export function logError(domain: string, operation: string) {
   return (error: unknown): void => {
-    const message = error instanceof Error ? error.message : String(error);
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const message = sanitizeMessage(rawMessage);
     const entry: ErrorEntry = {
       domain,
       operation,
@@ -40,12 +59,12 @@ export function logError(domain: string, operation: string) {
       timestamp: new Date().toISOString(),
     };
 
-    // Development: console
+    // Development: full detail to console
     if (__DEV__) {
-      console.warn(`[${domain}/${operation}]`, message);
+      console.warn(`[${domain}/${operation}]`, rawMessage);
     }
 
-    // Buffer for diagnostics
+    // Buffer sanitized entries for diagnostics
     errorBuffer.push(entry);
     if (errorBuffer.length > MAX_BUFFER_SIZE) {
       errorBuffer.shift();

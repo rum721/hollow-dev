@@ -201,6 +201,7 @@ export async function initEncryption(): Promise<void> {
 /**
  * Encrypt plaintext with AES-256-GCM.
  * Falls back to XOR on web where expo-crypto AES may not be available.
+ * Never returns plaintext on failure — always applies at least XOR.
  */
 export async function encryptText(plaintext: string): Promise<string> {
   if (!cachedKeyHex) await initEncryption();
@@ -208,9 +209,17 @@ export async function encryptText(plaintext: string): Promise<string> {
 
   try {
     return await aesEncrypt(plaintext);
-  } catch {
-    // Fallback: XOR encryption for web or if AES unavailable
-    return legacyXorEncrypt(plaintext);
+  } catch (e) {
+    // Log the AES failure for diagnostics (non-blocking)
+    if (__DEV__) {
+      console.warn('[encryption/encryptText] AES failed, using XOR fallback:', e);
+    }
+    // Fallback: XOR encryption — still encrypted, not plaintext
+    const xorResult = legacyXorEncrypt(plaintext);
+    // Verify fallback actually encrypted (has prefix)
+    if (xorResult.startsWith(LEGACY_XOR_PREFIX)) return xorResult;
+    // Last resort: this should never happen, but avoid returning plaintext
+    throw new Error('Encryption failed: both AES and XOR unavailable');
   }
 }
 
@@ -219,6 +228,8 @@ export async function encryptText(plaintext: string): Promise<string> {
  *   - "AES:" prefix → AES-256-GCM decryption
  *   - "ENC:" prefix → Legacy XOR decryption (migration)
  *   - No prefix    → plaintext (pre-encryption data)
+ *
+ * On failure, returns the ciphertext as-is to prevent data loss.
  */
 export async function decryptText(ciphertext: string): Promise<string> {
   if (!cachedKeyHex) await initEncryption();
@@ -227,7 +238,11 @@ export async function decryptText(ciphertext: string): Promise<string> {
   if (ciphertext.startsWith(AES_PREFIX)) {
     try {
       return await aesDecrypt(ciphertext.slice(AES_PREFIX.length));
-    } catch {
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[encryption/decryptText] AES decryption failed:', e);
+      }
+      // Return ciphertext as-is to prevent data loss; caller handles display
       return ciphertext;
     }
   }

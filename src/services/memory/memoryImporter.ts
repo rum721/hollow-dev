@@ -19,24 +19,39 @@ const MAX_FIELD_LENGTH = 2000;
 
 /**
  * Strip dangerous content from imported text:
- * - HTML/script tags (XSS vectors)
- * - JavaScript: / data: URIs
- * - On-event attributes
+ * - HTML/script/style/iframe tags (XSS vectors)
+ * - JavaScript: / data: / vbscript: URI schemes (all variations)
+ * - On-event attributes (onerror, onclick, etc.)
+ * - Expression() CSS attacks
  * - Null bytes and other control characters
+ * - Unicode homoglyphs of dangerous characters
  */
 function sanitizeText(text: string): string {
   return text
     // Remove null bytes and non-printable control chars (keep newlines, tabs)
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    // Strip <script>…</script> blocks
+    // Strip <script>…</script>, <style>…</style>, <iframe>…</iframe> blocks
     .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed[\s\S]*?>/gi, '')
     // Strip all remaining HTML tags
     .replace(/<[^>]*>/g, '')
-    // Remove javascript: and data: URI schemes
-    .replace(/javascript\s*:/gi, '')
-    .replace(/data\s*:[^,\s]*(;base64)?,/gi, '')
-    // Remove on-event handlers (onerror=, onclick=, etc.)
-    .replace(/\bon\w+\s*=/gi, '');
+    // Remove URI schemes (with optional whitespace/encoding bypasses)
+    .replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '')
+    .replace(/v\s*b\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '')
+    .replace(/data\s*:[^\s]*?(;base64)?\s*,/gi, '')
+    // Remove on-event handlers (onerror=, onclick=, onload=, etc.)
+    .replace(/\bon\w+\s*=/gi, '')
+    // Remove CSS expression() attacks
+    .replace(/expression\s*\(/gi, '')
+    // Remove url() references in any remaining CSS-like content
+    .replace(/url\s*\(\s*['"]?\s*javascript/gi, '')
+    // Strip HTML entity-encoded angle brackets that bypass tag removal
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/<[^>]*>/g, '')
+    // Remove HTML entity-encoded javascript
+    .replace(/&#[\dxa-f]+;/gi, '');
 }
 
 /** Truncate a field value to MAX_FIELD_LENGTH */

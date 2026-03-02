@@ -3,13 +3,13 @@ import {
   Modal,
   View,
   StyleSheet,
-  Image,
   TouchableOpacity,
   Dimensions,
   StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../theme';
+import { EncryptedImage } from './EncryptedImage';
 import type { ImageAttachment } from '../../types/chat';
 
 interface Props {
@@ -49,13 +49,12 @@ export function ImageViewer({ image, visible, onClose }: Props) {
           activeOpacity={1}
           onPress={onClose}
         />
-        <Image
-          source={{ uri: image.uri }}
-          style={{
-            width: displayWidth,
-            height: displayHeight,
-            borderRadius: 8,
-          }}
+        <EncryptedImage
+          uri={image.uri}
+          mimeType={image.mimeType}
+          width={displayWidth}
+          height={displayHeight}
+          borderRadius={8}
           resizeMode="contain"
         />
         <TouchableOpacity
