@@ -137,6 +137,16 @@ export function useStreaming() {
 
     abortRef.current = new AbortController();
 
+    // ── Connection timeout: abort if no first token within 60 seconds ──
+    // Once streaming begins (first token), the timer is cleared.
+    // This prevents indefinite hangs when API servers are unresponsive.
+    let connectionTimedOut = false;
+    const CONNECTION_TIMEOUT_MS = 60_000;
+    const connectionTimer = setTimeout(() => {
+      connectionTimedOut = true;
+      abortRef.current?.abort();
+    }, CONNECTION_TIMEOUT_MS);
+
     try {
       await sendChatMessage(
         chatMessages,
@@ -156,8 +166,13 @@ export function useStreaming() {
           },
         },
         {
-          onToken: (token: string) => appendStreamToken(token),
+          onToken: (token: string) => {
+            // Connection alive — clear the timeout on first token
+            clearTimeout(connectionTimer);
+            appendStreamToken(token);
+          },
           onComplete: (fullResponse: string) => {
+            clearTimeout(connectionTimer);
             finalizeAssistantMessage(sessionId, fullResponse);
 
             // ── V2 Smart memory extraction with timing-aware trigger ──
@@ -196,14 +211,22 @@ export function useStreaming() {
             }
           },
           onError: (error: Error) => {
-            appendStreamToken(`\n\n${error.message}`);
+            clearTimeout(connectionTimer);
+            const msg = connectionTimedOut
+              ? '请求超时，AI 服务暂时无响应，请稍后重试'
+              : error.message;
+            appendStreamToken(`\n\n${msg}`);
             finalizeAssistantMessage(sessionId);
           },
         },
         abortRef.current.signal,
       );
     } catch (error) {
-      appendStreamToken('\n\nConnection error. Please try again.');
+      clearTimeout(connectionTimer);
+      const msg = connectionTimedOut
+        ? '请求超时，AI 服务暂时无响应，请稍后重试'
+        : '网络连接失败，请检查网络后重试';
+      appendStreamToken(`\n\n${msg}`);
       finalizeAssistantMessage(sessionId);
     }
 

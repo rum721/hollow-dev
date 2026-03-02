@@ -14,6 +14,9 @@ const CORS_PROXY = ENV.API_PROXY_URL ? `${ENV.API_PROXY_URL}/` : '';
  * Platform-aware fetch wrapper.
  * - On native (iOS/Android): calls the API directly (no CORS restriction).
  * - On web: routes through the local CORS proxy.
+ *
+ * Callers should pass an AbortSignal via options for timeout control.
+ * Connection timeouts are managed at the streaming layer (useStreaming.ts).
  */
 export function apiFetch(url: string, options?: RequestInit): Promise<Response> {
   if (Platform.OS === 'web' && CORS_PROXY) {

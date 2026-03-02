@@ -111,8 +111,17 @@ export function classifyNetworkError(error: unknown): ClassifiedError {
   if (lower.includes('abort') || lower.includes('cancel')) {
     return { code: 'UNKNOWN', message: '请求已取消' };
   }
-  if (lower.includes('timeout')) {
-    return { code: 'NETWORK_ERROR', message: '请求超时，请检查网络连接' };
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return { code: 'NETWORK_ERROR', message: '请求超时，AI 服务暂时无响应，请稍后重试' };
+  }
+  if (lower.includes('network') || lower.includes('internet') || lower.includes('offline')) {
+    return { code: 'NETWORK_ERROR', message: '网络连接失败，请检查网络设置' };
+  }
+  if (lower.includes('dns') || lower.includes('resolve') || lower.includes('hostname')) {
+    return { code: 'NETWORK_ERROR', message: 'DNS 解析失败，请检查网络连接' };
+  }
+  if (lower.includes('ssl') || lower.includes('certificate') || lower.includes('tls')) {
+    return { code: 'NETWORK_ERROR', message: '安全连接失败，请检查网络环境' };
   }
   return { code: 'NETWORK_ERROR', message: '网络连接失败，请检查网络设置' };
 }
