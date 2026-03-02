@@ -145,7 +145,10 @@ export async function streamOpenAICompatibleChat(
       }
     }
   } catch (error) {
-    if (error instanceof Error) {
+    // Classify all errors before passing to callbacks.
+    // Already-classified errors contain Chinese (from classifyApiError) → pass through.
+    // Raw English errors (e.g. "Network request failed") → classify to Chinese.
+    if (error instanceof Error && /[\u4e00-\u9fff]/.test(error.message)) {
       callbacks.onError(error);
     } else {
       const classified = classifyNetworkError(error);

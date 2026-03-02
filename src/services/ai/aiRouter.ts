@@ -52,13 +52,20 @@ function isRetryableError(error: Error): boolean {
     msg.includes('配额') ||         // quota exhausted
     msg.includes('频繁') ||         // rate limited
     msg.includes('不可用') ||       // service unavailable
-    msg.includes('超时') ||         // timeout
+    msg.includes('超时') ||         // timeout (Chinese)
     msg.includes('timed out') ||
     msg.includes('overloaded') ||
     msg.includes('429') ||
     msg.includes('502') ||
     msg.includes('503') ||
-    msg.includes('服务器错误')       // server error
+    msg.includes('服务器错误') ||    // server error
+    msg.includes('网络') ||         // network error (Chinese classified)
+    msg.includes('连接失败') ||     // connection failed (Chinese classified)
+    msg.includes('network') ||      // raw "Network request failed"
+    msg.includes('failed to fetch') || // raw fetch error
+    msg.includes('dns') ||          // DNS resolution failure
+    msg.includes('econnrefused') || // connection refused
+    msg.includes('enotfound')       // host not found
   );
 }
 
