@@ -35,21 +35,25 @@ const DEEPSEEK_CONFIG: BuiltInModelConfig = {
   provider: 'deepseek',
   modelId: 'deepseek-v3-builtin',
   apiModelId: 'deepseek-chat',
-  apiKey: 'YOUR_DEEPSEEK_API_KEY_HERE',
+  apiKey: 'sk-c9155dedf0614319a5a69152a42cb169',
   baseUrl: 'https://api.deepseek.com/v1',
   label: 'Hollow AI',
 };
 
 /**
  * 根据网络环境返回排序后的内置模型列表
+ * 只返回已配置 API Key 的模型（占位符不算）
+ *
  * - 中国大陆：DeepSeek 优先，Gemini fallback
  * - 海外：Gemini 优先，DeepSeek fallback
  */
 export function getBuiltInModels(env: NetworkEnvironment): BuiltInModelConfig[] {
-  if (env === 'china') {
-    return [DEEPSEEK_CONFIG, GEMINI_CONFIG];
-  }
-  return [GEMINI_CONFIG, DEEPSEEK_CONFIG];
+  const all = env === 'china'
+    ? [DEEPSEEK_CONFIG, GEMINI_CONFIG]
+    : [GEMINI_CONFIG, DEEPSEEK_CONFIG];
+
+  // 过滤掉未配置真实 Key 的模型
+  return all.filter((c) => c.apiKey && !c.apiKey.startsWith('YOUR_'));
 }
 
 /**
