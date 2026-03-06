@@ -56,8 +56,10 @@ function isRetryableError(error: Error): boolean {
     msg.includes('频繁') ||         // rate limited
     msg.includes('不可用') ||       // service unavailable
     msg.includes('超时') ||         // timeout (Chinese)
+    msg.includes('取消') ||         // cancelled (Chinese classified, includes timeout-abort)
     msg.includes('timed out') ||
     msg.includes('overloaded') ||
+    msg.includes('abort') ||        // AbortError from timeout
     msg.includes('429') ||
     msg.includes('502') ||
     msg.includes('503') ||
@@ -316,19 +318,27 @@ async function sendWithBuiltInModel(
   let isFirstAttempt = true;
 
   // Step 3: 按优先级尝试内置模型
+  const hasFallback = builtInModels.length > 1;
+
   for (const builtIn of builtInModels) {
     try {
-      // 8s 超时防止被墙时无限等待
+      // 只在有 fallback 模型时使用 8s 超时（防止被墙时无限等待）
+      // 只有一个模型时不加额外超时，依赖 useStreaming 的 60s 连接超时
       const BUILTIN_TIMEOUT_MS = 8000;
-      const timeoutController = new AbortController();
-      const timeoutId = setTimeout(
-        () => timeoutController.abort(),
-        BUILTIN_TIMEOUT_MS,
-      );
+      let timeoutController: AbortController | null = null;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-      // 合并用户取消 signal 和超时 signal
+      if (hasFallback) {
+        timeoutController = new AbortController();
+        timeoutId = setTimeout(
+          () => timeoutController!.abort(),
+          BUILTIN_TIMEOUT_MS,
+        );
+      }
+
+      // 合并用户取消 signal 和超时 signal（如有）
       let combinedSignal: AbortSignal;
-      if (signal) {
+      if (timeoutController && signal) {
         if (typeof AbortSignal.any === 'function') {
           combinedSignal = AbortSignal.any([signal, timeoutController.signal]);
         } else {
@@ -338,8 +348,12 @@ async function sendWithBuiltInModel(
           timeoutController.signal.addEventListener('abort', onAbort, { once: true });
           combinedSignal = merged.signal;
         }
-      } else {
+      } else if (timeoutController) {
         combinedSignal = timeoutController.signal;
+      } else if (signal) {
+        combinedSignal = signal;
+      } else {
+        combinedSignal = new AbortController().signal; // never aborts
       }
 
       // 用 throw-on-retryable 模式让 fallback 链捕获错误
@@ -369,7 +383,7 @@ async function sendWithBuiltInModel(
           combinedSignal,
         );
       } finally {
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
       }
 
       // 如果有可重试的流错误且还没收到 token → 尝试下一个
