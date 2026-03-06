@@ -203,6 +203,18 @@
     "goToSettings": "前往设置",
     "skipForNow": "暂时跳过"
   },
+  "builtin": {
+    "freeMode": "免费体验模式",
+    "freeModeDesc": "当前使用内置模型，无需配置即可对话",
+    "usage": "今日已用 {{used}} / {{limit}} 条",
+    "networkEnv": "网络环境",
+    "networkChina": "中国大陆",
+    "networkOverseas": "海外",
+    "redetect": "重新检测",
+    "configureKeyHint": "配置自己的 API Key 可解锁更多模型和无限消息",
+    "quotaWarning": "今日免费额度剩余 {{remaining}} 条",
+    "quotaExhausted": "今日免费额度已用完，请在设置中配置 API Key"
+  },
   "quickProfile": {
     "age": "年龄",
     "agePlaceholder": "你的年龄",

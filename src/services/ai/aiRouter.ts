@@ -7,6 +7,9 @@ import { anonymizeMessages, shouldAnonymize } from './dataAnonymizer';
 import { getPremiumModelId } from './premiumRouter';
 import { classifyApiError } from './apiErrorClassifier';
 import { textOf } from './contentUtils';
+import { getBuiltInModels, type BuiltInModelConfig } from './builtInModels';
+import { getNetworkEnvironment, correctNetworkEnvironment } from './networkDetector';
+import { checkRateLimit, consumeRateLimit } from './rateLimiter';
 import type { ModelInfo } from '../../types/settings';
 import type { ChatMessage, StreamCallbacks, RequestOptions } from './types';
 import type { ConversationStyle } from '../../types/settings';
@@ -204,6 +207,17 @@ export async function sendChatMessage(
   const requestOptions: RequestOptions = { store: storeData, maxTokens };
   const outboundMessages = storeData ? anonymizeMessages(messages) : messages;
 
+  // ── Check if user has any API key for the selected model ──────────
+  const primaryModel = getModelInfo(effectiveModelId);
+  const hasUserKey = primaryModel ? Boolean(config.apiKeys[primaryModel.apiKeyField]) : false;
+
+  // If no user key configured, use built-in model
+  if (!hasUserKey) {
+    return sendWithBuiltInModel(
+      outboundMessages, systemPrompt, requestOptions, callbacks, signal,
+    );
+  }
+
   // ── Build failover chain ───────────────────────────────────────────
   const failoverChain = buildFailoverChain(effectiveModelId, config.apiKeys);
 
@@ -263,6 +277,134 @@ export async function sendChatMessage(
       callbacks.onToken(`[${candidate.label} 暂不可用，正在切换到 ${nextCandidate.label}…]\n\n`);
     }
   }
+}
+
+/**
+ * 使用内置模型发送消息，带网络感知 fallback 链
+ *
+ * 流程：
+ * 1. 检查每日限额
+ * 2. 检测网络环境 → 决定模型优先级
+ * 3. 尝试首选模型（8s 超时）
+ * 4. 首选失败 → 自动切 fallback → 修正网络缓存
+ * 5. 全部失败 → 友好错误提示
+ */
+async function sendWithBuiltInModel(
+  outboundMessages: ChatMessage[],
+  systemPrompt: string,
+  requestOptions: RequestOptions,
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  // Step 1: 检查限流
+  const rateCheck = await checkRateLimit();
+  if (!rateCheck.allowed) {
+    callbacks.onError(
+      new Error(
+        `今日免费额度已用完（50条/天），${rateCheck.resetTime}重置。\n\n` +
+        `如需继续使用，请在「设置 → AI 设置」中配置自己的 API Key。`,
+      ),
+    );
+    return;
+  }
+
+  // Step 2: 检测网络环境
+  const networkEnv = await getNetworkEnvironment();
+  const builtInModels = getBuiltInModels(networkEnv);
+
+  let lastError: Error | null = null;
+  let isFirstAttempt = true;
+
+  // Step 3: 按优先级尝试内置模型
+  for (const builtIn of builtInModels) {
+    try {
+      // 8s 超时防止被墙时无限等待
+      const BUILTIN_TIMEOUT_MS = 8000;
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(
+        () => timeoutController.abort(),
+        BUILTIN_TIMEOUT_MS,
+      );
+
+      // 合并用户取消 signal 和超时 signal
+      let combinedSignal: AbortSignal;
+      if (signal) {
+        if (typeof AbortSignal.any === 'function') {
+          combinedSignal = AbortSignal.any([signal, timeoutController.signal]);
+        } else {
+          const merged = new AbortController();
+          const onAbort = () => merged.abort();
+          signal.addEventListener('abort', onAbort, { once: true });
+          timeoutController.signal.addEventListener('abort', onAbort, { once: true });
+          combinedSignal = merged.signal;
+        }
+      } else {
+        combinedSignal = timeoutController.signal;
+      }
+
+      // 用 throw-on-retryable 模式让 fallback 链捕获错误
+      let streamError: Error | null = null;
+      let tokensReceived = false;
+
+      try {
+        await streamOpenAICompatibleChat(
+          builtIn.baseUrl,
+          builtIn.apiKey,
+          builtIn.apiModelId,
+          systemPrompt,
+          outboundMessages,
+          {
+            onToken: (token: string) => {
+              tokensReceived = true;
+              callbacks.onToken(token);
+            },
+            onComplete: (fullResponse: string) => {
+              callbacks.onComplete(fullResponse);
+            },
+            onError: (error: Error) => {
+              streamError = error;
+            },
+          },
+          requestOptions,
+          combinedSignal,
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      // 如果有可重试的流错误且还没收到 token → 尝试下一个
+      if (streamError && !tokensReceived && isRetryableError(streamError)) {
+        throw streamError;
+      }
+      // 不可重试的错误 → 直接传给用户
+      if (streamError) {
+        callbacks.onError(streamError);
+        return;
+      }
+
+      // 成功
+      await consumeRateLimit();
+
+      // 如果 fallback 成功，修正网络环境缓存
+      if (!isFirstAttempt) {
+        await correctNetworkEnvironment(networkEnv);
+      }
+
+      return;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      isFirstAttempt = false;
+      // 继续尝试下一个
+    }
+  }
+
+  // Step 5: 所有内置模型失败
+  callbacks.onError(
+    new Error(
+      '当前网络环境无法连接 AI 服务，请稍后重试。\n\n' +
+      '如果问题持续，请在「设置 → AI 设置」中配置自己的 API Key。',
+    ),
+  );
 }
 
 export async function validateApiKey(modelId: string, apiKey: string): Promise<{ valid: boolean; error?: string }> {

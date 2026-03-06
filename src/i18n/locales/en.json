@@ -203,6 +203,18 @@
     "goToSettings": "Go to Settings",
     "skipForNow": "Skip for Now"
   },
+  "builtin": {
+    "freeMode": "Free Trial Mode",
+    "freeModeDesc": "Using built-in model, no configuration needed",
+    "usage": "Today: {{used}} / {{limit}} messages used",
+    "networkEnv": "Network",
+    "networkChina": "Mainland China",
+    "networkOverseas": "International",
+    "redetect": "Re-detect",
+    "configureKeyHint": "Add your own API Key to unlock more models and unlimited messages",
+    "quotaWarning": "{{remaining}} free messages remaining today",
+    "quotaExhausted": "Daily free quota exhausted. Add an API Key in Settings."
+  },
   "quickProfile": {
     "age": "Age",
     "agePlaceholder": "Your age",

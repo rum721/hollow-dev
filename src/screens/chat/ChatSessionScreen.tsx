@@ -22,8 +22,10 @@ import { getModelInfo } from '../../services/ai/models';
 import { useStreaming } from '../../hooks/useStreaming';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { useI18n } from '../../i18n';
 import { summarizeSession } from '../../services/ai/sessionSummarizer';
 import { getSummaryBySessionId, insertSummary } from '../../services/storage/summaryRepo';
+import { getDailyUsage } from '../../services/ai/rateLimiter';
 import { colors, spacing } from '../../theme';
 import type { ChatStackParamList } from '../../types/navigation';
 import type { Message, ImageAttachment } from '../../types/chat';
@@ -77,11 +79,35 @@ export function ChatSessionScreen() {
   const selectedModel = useSettingsStore((s) => s.selectedModel);
   const modelInfo = getModelInfo(selectedModel);
   const hasApiKey = modelInfo ? Boolean(apiKeys[modelInfo.apiKeyField]) : false;
-  const showApiKeyGuide = !hasApiKey && !dismissedApiGuide && messages.length === 0;
+  // Built-in models are always available — no need to block with ApiKeyGuide
+  const showApiKeyGuide = false;
+
+  // Built-in quota warning state
+  const [builtInQuotaWarning, setBuiltInQuotaWarning] = useState<string | null>(null);
+
+  const { t } = useI18n();
 
   useEffect(() => {
     loadMessages(sessionId);
   }, [sessionId]);
+
+  // ── Check built-in model quota when no user key ──
+  useEffect(() => {
+    if (!hasApiKey) {
+      getDailyUsage().then(({ used, limit }) => {
+        const remaining = limit - used;
+        if (remaining <= 0) {
+          setBuiltInQuotaWarning(t('builtin.quotaExhausted'));
+        } else if (remaining <= 10) {
+          setBuiltInQuotaWarning(t('builtin.quotaWarning', { remaining: String(remaining) }));
+        } else {
+          setBuiltInQuotaWarning(null);
+        }
+      });
+    } else {
+      setBuiltInQuotaWarning(null);
+    }
+  }, [hasApiKey, messages.length]);
 
   // ── Session summary generation on leave ──
   useEffect(() => {
@@ -234,6 +260,14 @@ export function ChatSessionScreen() {
       {showUpgrade && (
         <UpgradePrompt onDismiss={() => setShowUpgrade(false)} />
       )}
+      {builtInQuotaWarning && (
+        <View style={styles.quotaBanner}>
+          <Feather name="alert-circle" size={14} color={colors.amber} />
+          <HollowText variant="caption" color={colors.amber} style={{ marginLeft: 6, flex: 1 }}>
+            {builtInQuotaWarning}
+          </HollowText>
+        </View>
+      )}
       {!isConnected && (
         <View style={styles.offlineBanner}>
           <Feather name="wifi-off" size={14} color={colors.danger} />
@@ -323,6 +357,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  quotaBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(212, 165, 116, 0.1)',
   },
   offlineBanner: {
     flexDirection: 'row',

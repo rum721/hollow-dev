@@ -1,6 +1,8 @@
 import { streamOpenAICompatibleChat } from './openaiCompatibleClient';
 import { streamAnthropicChat } from './anthropicClient';
 import { getModelInfo, PROVIDER_BASE_URLS } from './models';
+import { getDefaultBuiltInModel } from './builtInModels';
+import { getNetworkEnvironment } from './networkDetector';
 import { textOf } from './contentUtils';
 import type { ChatMessage, MessageContent } from './types';
 import type { CoreProfile, ProfileCategory, EmotionTag } from '../../types/memory';
@@ -364,7 +366,21 @@ export async function extractMemories(
   }
 
   const apiKey = apiKeys[modelInfo.apiKeyField];
-  if (!apiKey) return { status: 'skipped', reason: 'no_api_key' };
+  if (!apiKey) {
+    // 用户没有配置 API Key，使用内置模型进行记忆提取
+    try {
+      const networkEnv = await getNetworkEnvironment();
+      const builtIn = getDefaultBuiltInModel(networkEnv);
+      return extractWithModel(
+        messages, existingProfiles,
+        { provider: builtIn.provider, apiModelId: builtIn.apiModelId },
+        builtIn.apiKey,
+        builtIn.baseUrl,
+      );
+    } catch {
+      return { status: 'skipped', reason: 'builtin_failed' };
+    }
+  }
 
   return extractWithModel(messages, existingProfiles, modelInfo, apiKey);
 }
@@ -374,6 +390,7 @@ async function extractWithModel(
   existingProfiles: CoreProfile[],
   modelInfo: { provider: string; apiModelId: string },
   apiKey: string,
+  baseUrlOverride?: string,
 ): Promise<ExtractionStatus> {
   const recentMessages = messages.slice(-10);
   // Extract plain text from each message (multimodal → text only for extraction)
@@ -406,7 +423,7 @@ async function extractWithModel(
         },
       );
     } else {
-      const baseUrl = PROVIDER_BASE_URLS[modelInfo.provider as keyof typeof PROVIDER_BASE_URLS];
+      const baseUrl = baseUrlOverride || PROVIDER_BASE_URLS[modelInfo.provider as keyof typeof PROVIDER_BASE_URLS];
       await streamOpenAICompatibleChat(
         baseUrl,
         apiKey,

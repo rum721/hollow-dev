@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Hollow",
-    "slug": "hollow-app",
+    "slug": "hollow",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -31,9 +31,12 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "RECORD_AUDIO",
-        "READ_MEDIA_IMAGES",
-        "CAMERA"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.CAMERA",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
@@ -63,8 +66,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "cfe03c88-62bb-4a13-9a2d-b88d93050e72"
+        "projectId": "46af9a2a-2fd9-49e2-9daa-cd18265bbd95"
       }
-    }
+    },
+    "owner": "yu721s-organization"
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, ScrollView, Alert, View, TextInput, TouchableOpacity, Modal, FlatList, Platform, ActivityIndicator, PanResponder } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +17,8 @@ import { validateApiKey } from '../../services/ai/aiRouter';
 import { colors, spacing, borderRadius, fontSize } from '../../theme';
 import { useMemoryStore } from '../../store/useMemoryStore';
 import { exportMemoryToFile } from '../../services/memory/memoryExporter';
+import { getDailyUsage } from '../../services/ai/rateLimiter';
+import { getNetworkDetectionInfo, resetNetworkDetection } from '../../services/ai/networkDetector';
 import { TIER_LABELS, TIER_CONFIG } from '../../types/subscription';
 import type { SubscriptionTier } from '../../types/subscription';
 import type { LanguageSetting, ConversationStyle, ModelInfo, AutoDestructDays } from '../../types/settings';
@@ -53,6 +55,10 @@ export function SettingsScreen() {
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<{ valid: boolean; error?: string } | null>(null);
 
+  // Built-in model status
+  const [builtInUsage, setBuiltInUsage] = useState<{ used: number; limit: number } | null>(null);
+  const [networkEnv, setNetworkEnv] = useState<string | null>(null);
+
   const sliderTrackRef = useRef<View>(null);
   const trackLayoutRef = useRef({ x: 0, width: 0 });
 
@@ -78,7 +84,25 @@ export function SettingsScreen() {
     })
   ).current;
 
+  // Check if user has any API key for the current model
   const currentModel = getModelInfo(store.selectedModel);
+  const currentApiKeyForModel = currentModel ? (store.apiKeys[currentModel.apiKeyField] ?? '') : '';
+  const hasUserApiKey = Boolean(currentApiKeyForModel);
+
+  // Load built-in model usage info when no user key
+  useEffect(() => {
+    if (!hasUserApiKey) {
+      getDailyUsage().then(setBuiltInUsage);
+      getNetworkDetectionInfo().then((info) => setNetworkEnv(info.env));
+    }
+  }, [hasUserApiKey]);
+
+  const handleRedetectNetwork = async () => {
+    await resetNetworkDetection();
+    const info = await getNetworkDetectionInfo();
+    setNetworkEnv(info.env);
+  };
+
   const langLabel = LANGUAGES.find((l) => l.key === store.language);
   const styleLabel = STYLES.find((s) => s.key === store.conversationStyle);
 
@@ -149,7 +173,7 @@ export function SettingsScreen() {
     setValidating(false);
   };
 
-  const currentApiKey = currentModel ? (store.apiKeys[currentModel.apiKeyField] ?? '') : '';
+  const currentApiKey = currentApiKeyForModel;
 
   const handleSelectModel = (model: ModelInfo) => {
     store.setSelectedModel(model.id);
@@ -222,6 +246,36 @@ export function SettingsScreen() {
 
           {/* AI Settings */}
           <SettingsGroup title={t('settings.aiSettings')}>
+            {/* Built-in free mode banner */}
+            {!hasUserApiKey && builtInUsage && (
+              <View style={styles.builtInBanner}>
+                <View style={styles.builtInHeader}>
+                  <Feather name="gift" size={16} color={colors.amber} />
+                  <HollowText variant="body" color={colors.amber} style={{ marginLeft: 8, fontWeight: '600' }}>
+                    {t('builtin.freeMode')}
+                  </HollowText>
+                </View>
+                <HollowText variant="caption" color={colors.textSecondary} style={styles.builtInDesc}>
+                  {t('builtin.freeModeDesc')}
+                </HollowText>
+                <View style={styles.builtInStats}>
+                  <HollowText variant="caption" color={colors.textMuted}>
+                    {t('builtin.usage', { used: String(builtInUsage.used), limit: String(builtInUsage.limit) })}
+                  </HollowText>
+                  {networkEnv && (
+                    <TouchableOpacity onPress={handleRedetectNetwork} style={styles.builtInNetworkRow}>
+                      <HollowText variant="caption" color={colors.textMuted}>
+                        {t('builtin.networkEnv')}: {networkEnv === 'china' ? t('builtin.networkChina') : t('builtin.networkOverseas')}
+                      </HollowText>
+                      <Feather name="refresh-cw" size={12} color={colors.textMuted} style={{ marginLeft: 6 }} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <HollowText variant="label" color={colors.textMuted} style={styles.builtInHint}>
+                  {t('builtin.configureKeyHint')}
+                </HollowText>
+              </View>
+            )}
             <SettingsRow
               icon="cpu"
               label={t('settings.modelSelection')}
@@ -522,5 +576,36 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     borderLeftWidth: 2,
     borderLeftColor: colors.amber,
+  },
+  builtInBanner: {
+    backgroundColor: 'rgba(212, 165, 116, 0.06)',
+    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 165, 116, 0.15)',
+  },
+  builtInHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  builtInDesc: {
+    marginBottom: spacing.sm,
+    lineHeight: 18,
+  },
+  builtInStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  builtInNetworkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  builtInHint: {
+    fontStyle: 'italic',
+    lineHeight: 16,
   },
 });
