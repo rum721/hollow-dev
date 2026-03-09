@@ -53,6 +53,9 @@ function isRetryableError(error: Error): boolean {
   const msg = error.message.toLowerCase();
   return (
     msg.includes('配额') ||         // quota exhausted
+    msg.includes('余额') ||         // insufficient balance (402)
+    msg.includes('支付') ||         // payment issue (402)
+    msg.includes('充值') ||         // needs top-up (402)
     msg.includes('频繁') ||         // rate limited
     msg.includes('不可用') ||       // service unavailable
     msg.includes('超时') ||         // timeout (Chinese)
@@ -60,6 +63,9 @@ function isRetryableError(error: Error): boolean {
     msg.includes('timed out') ||
     msg.includes('overloaded') ||
     msg.includes('abort') ||        // AbortError from timeout
+    msg.includes('billing') ||      // billing issue (raw English)
+    msg.includes('insufficient') || // insufficient quota/balance (raw English)
+    msg.includes('402') ||          // HTTP 402 Payment Required
     msg.includes('429') ||
     msg.includes('502') ||
     msg.includes('503') ||
