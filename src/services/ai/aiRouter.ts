@@ -215,12 +215,13 @@ export async function sendChatMessage(
   const requestOptions: RequestOptions = { store: storeData, maxTokens };
   const outboundMessages = storeData ? anonymizeMessages(messages) : messages;
 
-  // ── Check if user has any API key for the selected model ──────────
-  const primaryModel = getModelInfo(effectiveModelId);
-  const hasUserKey = primaryModel ? Boolean(config.apiKeys[primaryModel.apiKeyField]) : false;
+  // ── Check if user has ANY API key configured ─────────────────────
+  // Only use built-in model when the user has NO keys at all (zero-config mode).
+  // If user has keys (even for different models), use normal failover chain
+  // which will skip models without keys and try ones that have keys.
+  const hasAnyUserKey = Object.values(config.apiKeys).some((key) => Boolean(key));
 
-  // If no user key configured, use built-in model
-  if (!hasUserKey) {
+  if (!hasAnyUserKey) {
     return sendWithBuiltInModel(
       outboundMessages, systemPrompt, requestOptions, callbacks, signal,
     );
