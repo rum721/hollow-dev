@@ -128,6 +128,9 @@ async function initSchema(database: any): Promise<void> {
   // Deferred import to avoid circular dependency at module level
   const { cleanupAndDeduplicateProfiles } = await import('./profileRepo');
   await cleanupAndDeduplicateProfiles();
+
+  // Migration: strip year references from all memory content (idempotent)
+  await stripYearsFromAllMemories(database);
 }
 
 async function migrateMemoryEntries(database: any): Promise<void> {
@@ -311,6 +314,70 @@ function createWebShim() {
     execAsync: async () => {},
     closeAsync: async () => {},
   };
+}
+
+/**
+ * One-time migration: strip year references (e.g., "2025年", "今年") from
+ * all core_profiles and episodic_memories content.
+ *
+ * The system now provides event_date separately, so content should be
+ * time-independent. This removes years that the AI hallucinated during
+ * extraction (like writing "2025年" instead of letting the system record the date).
+ *
+ * Idempotent: checks settings flag 'year_strip_v1'.
+ */
+async function stripYearsFromAllMemories(database: any): Promise<void> {
+  try {
+    const flag = (await database.getFirstAsync(
+      "SELECT value FROM settings WHERE key = 'year_strip_v1'",
+    )) as { value: string } | null;
+    if (flag) return; // Already done
+
+    // Deferred import to avoid circular dependency
+    const { stripYearFromContent } = await import('../ai/memoryExtractor');
+    const { decryptText, encryptText } = await import('./encryption');
+
+    // Process core_profiles
+    const profiles = (await database.getAllAsync(
+      'SELECT id, content FROM core_profiles',
+    )) as { id: string; content: string }[];
+
+    for (const row of profiles) {
+      const decrypted = await decryptText(row.content);
+      const stripped = stripYearFromContent(decrypted);
+      if (stripped !== decrypted) {
+        const encrypted = await encryptText(stripped);
+        await database.runAsync(
+          `UPDATE core_profiles SET content = ?, updated_at = datetime('now') WHERE id = ?`,
+          [encrypted, row.id],
+        );
+      }
+    }
+
+    // Process episodic_memories
+    const episodes = (await database.getAllAsync(
+      'SELECT id, content FROM episodic_memories',
+    )) as { id: string; content: string }[];
+
+    for (const row of episodes) {
+      const decrypted = await decryptText(row.content);
+      const stripped = stripYearFromContent(decrypted);
+      if (stripped !== decrypted) {
+        const encrypted = await encryptText(stripped);
+        await database.runAsync(
+          'UPDATE episodic_memories SET content = ? WHERE id = ?',
+          [encrypted, row.id],
+        );
+      }
+    }
+
+    // Mark migration as done
+    await database.runAsync(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('year_strip_v1', '1')",
+    );
+  } catch {
+    // Non-fatal: cleanup will retry next launch
+  }
 }
 
 function extractTableFromSelect(sql: string): string | null {

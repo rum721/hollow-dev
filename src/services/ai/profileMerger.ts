@@ -1,6 +1,6 @@
 import { upsertProfile } from '../storage/profileRepo';
 import { insertEpisode, findSimilarEpisode } from '../storage/episodeRepo';
-import { normalizeEntityKey, cleanContent } from './memoryExtractor';
+import { normalizeEntityKey, cleanContent, stripYearFromContent } from './memoryExtractor';
 import type { ExtractionResult, MemoryOperation } from './memoryExtractor';
 import type { ProfileCategory } from '../../types/memory';
 
@@ -43,9 +43,9 @@ export async function mergeExtractionResult(
         ? (op.category as ProfileCategory)
         : 'identity';
 
-    // Double-normalize key and clean content at merge time (defense in depth)
+    // Double-normalize key, clean content, and strip years at merge time (defense in depth)
     const normalizedKey = normalizeEntityKey(op.entityKey);
-    const cleanedContent = cleanContent(op.content);
+    const cleanedContent = stripYearFromContent(cleanContent(op.content));
 
     try {
       await upsertProfile({
@@ -85,7 +85,7 @@ export async function mergeExtractionResult(
 
       await insertEpisode({
         sessionId,
-        content: op.content,
+        content: stripYearFromContent(op.content),
         emotion: op.emotion || 'neutral',
         intensity: op.importance || 3,
         eventDate: new Date().toISOString().split('T')[0],

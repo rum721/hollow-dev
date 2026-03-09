@@ -154,6 +154,35 @@ export function cleanContent(content: string): string {
     .trim();
 }
 
+/**
+ * Strip year references from memory content.
+ * The system provides event_date separately, so content should be time-independent.
+ *
+ * Handles:
+ * - "2025年3月" → "3月"
+ * - "2025年10月15日" → "10月15日"
+ * - "2025年" (standalone) → ""
+ * - "今年"/"去年"/"前年"/"明年" → ""
+ * - "in 2025" / "since 2024" → ""
+ */
+export function stripYearFromContent(content: string): string {
+  return content
+    // "2024年3月15日" → "3月15日", "2025年10月" → "10月"
+    .replace(/20\d{2}年(\d{1,2}月)/g, '$1')
+    // Standalone "2025年" (with optional trailing space/comma)
+    .replace(/20\d{2}年[，,]?\s*/g, '')
+    // Chinese relative time words
+    .replace(/[今去前明]年[，,]?\s*/g, '')
+    // English patterns: "in 2025", "since 2024", "(2025)"
+    .replace(/\b(in|since|from|around|circa)\s+20\d{2}\b/gi, '')
+    .replace(/\(20\d{2}\)/g, '')
+    // Standalone year numbers that look like years (surrounded by spaces/punctuation)
+    .replace(/(?<=^|[\s,，。.;；])(20\d{2})(?=[\s,，。.;；]|$)/g, '')
+    // Clean up multiple spaces and leading/trailing whitespace
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 // ── High-value content patterns for smart triggering ──
 
 const HIGH_VALUE_PATTERNS = [
@@ -278,7 +307,14 @@ function buildExtractionPrompt(existingProfiles: CoreProfile[]): string {
       .join('\n');
   }
 
+  // Inject current date — model must NOT guess the year
+  const today = new Date().toISOString().split('T')[0];
+  const currentYear = new Date().getFullYear();
+
   return `你是 Hollow 的记忆管理系统。从对话中提取值得长期记忆的信息，并与已有记忆比对，决定新增、更新或跳过。
+
+## 当前时间
+今天是 ${today}（${currentYear}年）。
 
 ## 已有记忆
 ${existingContext}
@@ -338,6 +374,25 @@ ${existingContext}
 8. content 字段只写纯描述文字，不要包含 entity_key、category、标签等元数据
 9. importance 评分标准：5=人生重大转折，4=重要情感/关系进展，3=日常有价值信息，2=普通记录，1=不该提取
 10. 如果对话中用户发送了图片且 AI 描述了图片内容，提取图片中的关键信息作为记忆
+
+## 时间规则（极其重要，必须严格遵守）
+1. content 中【绝对禁止】出现具体年份数字（如"2025年"、"2026年"、"2024年"）
+2. content 中【绝对禁止】出现"今年"、"去年"、"前年"、"明年"等相对时间词
+3. content 中可以保留月份和日期（如"3月"、"10月15日"），但不能写年份
+4. event_date 字段由系统自动提供，你不需要输出 event_date
+5. 时间描述请用无年份的方式表达
+
+正确示例:
+- ✅ "和安安一起去看了画展，她表现得很开心"
+- ✅ "3月开始在新公司工作，负责AI产品"
+- ✅ "最近在考虑跳槽，对当前工作不太满意"
+- ✅ "春天时养了一只小猫叫墨墨"
+
+错误示例:
+- ❌ "2025年3月和安安一起看展"（包含年份）
+- ❌ "今年开始在新公司工作"（包含"今年"）
+- ❌ "去年养了一只猫"（包含"去年"）
+- ❌ "2026年春天开始减肥"（包含年份）
 
 只输出 JSON，不要有任何其他文字。`;
 }

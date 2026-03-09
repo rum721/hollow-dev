@@ -1,6 +1,6 @@
 import { cacheDirectory, writeAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { cleanContent } from '../ai/memoryExtractor';
+import { cleanContent, stripYearFromContent } from '../ai/memoryExtractor';
 import type { CoreProfile, EpisodicMemory, SessionSummary } from '../../types/memory';
 
 // Category labels (ordered by display priority)
@@ -50,8 +50,8 @@ export function formatMemoryAsMarkdown(
       entries.sort((a, b) => b.mentionCount - a.mentionCount);
 
       for (const item of entries) {
-        // Clean content of any raw metadata leakage before export
-        const cleaned = cleanContent(item.content);
+        // Clean content of any raw metadata leakage and strip year references before export
+        const cleaned = stripYearFromContent(cleanContent(item.content));
         // Embed key as HTML comment for lossless re-import
         md += `- **${item.title}** <!-- key:${item.key} -->: ${cleaned}\n`;
       }
@@ -64,7 +64,7 @@ export function formatMemoryAsMarkdown(
     if (uncategorized.length > 0) {
       md += `### 其他\n\n`;
       for (const item of uncategorized) {
-        const cleaned = cleanContent(item.content);
+        const cleaned = stripYearFromContent(cleanContent(item.content));
         md += `- **${item.title}** <!-- key:${item.key} -->: ${cleaned}\n`;
       }
       md += `\n`;
@@ -89,7 +89,8 @@ export function formatMemoryAsMarkdown(
       }
       const emotionLabel = EMOTION_LABELS[ep.emotion] || ep.emotion;
       const intensityStars = '●'.repeat(Math.min(5, ep.intensity)) + '○'.repeat(Math.max(0, 5 - ep.intensity));
-      md += `- ${ep.content} — *${emotionLabel}* ${intensityStars}\n`;
+      const episodeContent = stripYearFromContent(ep.content);
+      md += `- ${episodeContent} — *${emotionLabel}* ${intensityStars}\n`;
     }
     md += `\n`;
   }

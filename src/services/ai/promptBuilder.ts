@@ -288,7 +288,16 @@ function buildChinesePrompt(
   memoryContext: string,
   knowledgeContext?: string,
 ): string {
-  let prompt = `你是"留白"（Hollow）。
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  const weekday = weekdays[now.getDay()];
+
+  let prompt = `【当前时间】${year}年${month}月${day}日 星期${weekday}
+
+你是"留白"（Hollow）。
 
 ## 你是谁
 
@@ -351,7 +360,12 @@ function buildEnglishPrompt(
   memoryContext: string,
   knowledgeContext?: string,
 ): string {
-  let prompt = `You are Hollow.
+  const now = new Date();
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  let prompt = `[Current date] ${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${days[now.getDay()]}
+
+You are Hollow.
 
 ## Who You Are
 
