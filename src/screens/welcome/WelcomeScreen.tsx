@@ -6,6 +6,7 @@ import { colors, spacing } from '../../theme';
 import { HollowText } from '../../components/common/HollowText';
 import { AmberButton } from '../../components/common/AmberButton';
 import { AmberGlowDot } from '../../components/common/AmberGlowDot';
+import { GlowParticles } from '../../components/common/GlowParticles';
 import { useI18n } from '../../i18n';
 import { useResponsive } from '../../hooks/useResponsive';
 import type { RootStackParamList } from '../../types/navigation';
@@ -19,6 +20,7 @@ export function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
+      <GlowParticles />
       <View style={styles.content}>
         <View style={styles.glowArea}>
           <AmberGlowDot size={isDesktop ? 60 : 50} />

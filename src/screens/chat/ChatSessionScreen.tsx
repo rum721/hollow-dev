@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -26,9 +26,10 @@ import { useI18n } from '../../i18n';
 import { summarizeSession } from '../../services/ai/sessionSummarizer';
 import { getSummaryBySessionId, insertSummary } from '../../services/storage/summaryRepo';
 import { getDailyUsage } from '../../services/ai/rateLimiter';
-import { colors, spacing } from '../../theme';
+import { colors, spacing, layout } from '../../theme';
 import type { ChatStackParamList } from '../../types/navigation';
 import type { Message, ImageAttachment } from '../../types/chat';
+import { formatTime } from '../../utils/formatters';
 import type { ChatMessage } from '../../services/ai/types';
 
 type RouteType = RouteProp<ChatStackParamList, 'ChatSession'>;
@@ -136,17 +137,65 @@ export function ChatSessionScreen() {
     setViewerImage(image);
   }, []);
 
-  const displayMessages: (Message | { id: string; role: 'streaming'; content: string })[] = [
-    ...messages,
-    ...(isStreaming && streamingText
-      ? [{ id: 'streaming', role: 'streaming' as const, content: streamingText }]
-      : []),
-  ];
+  type DisplayItem =
+    | (Message & { _type: 'message' })
+    | { _type: 'streaming'; id: string; role: 'streaming'; content: string }
+    | { _type: 'timestamp'; id: string; label: string };
 
-  const renderMessage = ({ item }: { item: typeof displayMessages[number] }) => {
-    if (item.role === 'user') {
-      const msg = item as Message;
+  const displayMessages = useMemo<DisplayItem[]>(() => {
+    const items: DisplayItem[] = [];
+    const FIVE_MIN = 5 * 60 * 1000;
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      // Insert timestamp divider if gap ≥ 5 minutes from previous message
+      if (i > 0 && msg.createdAt && messages[i - 1].createdAt) {
+        const gap = new Date(msg.createdAt).getTime() - new Date(messages[i - 1].createdAt).getTime();
+        if (gap >= FIVE_MIN) {
+          items.push({ _type: 'timestamp', id: `ts-${i}`, label: formatTime(msg.createdAt) });
+        }
+      }
+      items.push({ ...msg, _type: 'message' });
+    }
+
+    if (isStreaming && streamingText) {
+      items.push({ _type: 'streaming', id: 'streaming', role: 'streaming', content: streamingText });
+    }
+
+    return items;
+  }, [messages, isStreaming, streamingText]);
+
+  const renderMessage = ({ item, index }: { item: DisplayItem; index: number }) => {
+    if (item._type === 'timestamp') {
       return (
+        <View style={styles.timestampDivider}>
+          <HollowText variant="caption" color={colors.textMuted} style={styles.timestampText}>
+            {item.label}
+          </HollowText>
+        </View>
+      );
+    }
+
+    // Compute spacing based on previous item
+    const prev = index > 0 ? displayMessages[index - 1] : null;
+    const sameRole = prev && prev._type !== 'timestamp' && 'role' in prev && 'role' in item && prev.role === item.role;
+    const gap = sameRole ? layout.messageGapSame : layout.messageGapDiff;
+
+    if (item._type === 'streaming' || item.role === 'assistant') {
+      return (
+        <View style={{ marginTop: gap }}>
+          <AIMessage
+            content={item.content}
+            isStreaming={item._type === 'streaming'}
+            onCopy={handleCopy}
+          />
+        </View>
+      );
+    }
+
+    const msg = item as Message & { _type: 'message' };
+    return (
+      <View style={{ marginTop: gap }}>
         <UserMessage
           content={msg.content}
           createdAt={msg.createdAt}
@@ -154,15 +203,7 @@ export function ChatSessionScreen() {
           imageAttachments={msg.imageAttachments}
           onImagePress={handleImagePress}
         />
-      );
-    }
-    return (
-      <AIMessage
-        content={item.content}
-        createdAt={item.role === 'streaming' ? undefined : (item as Message).createdAt}
-        isStreaming={item.role === 'streaming'}
-        onCopy={handleCopy}
-      />
+      </View>
     );
   };
 
@@ -372,5 +413,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 6,
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  timestampDivider: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  timestampText: {
+    fontSize: 11,
   },
 });

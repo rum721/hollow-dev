@@ -40,6 +40,13 @@ const STYLES: { key: ConversationStyle; labelKey: string }[] = [
 
 const AUTO_DESTRUCT_OPTIONS: AutoDestructDays[] = [null, 7, 30, 90];
 
+function getGreetingText(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return '早上好';
+  if (hour >= 12 && hour < 18) return '下午好';
+  return '晚上好';
+}
+
 export function SettingsScreen() {
   const { t } = useI18n();
   const store = useSettingsStore();
@@ -101,6 +108,12 @@ export function SettingsScreen() {
     await resetNetworkDetection();
     const info = await getNetworkDetectionInfo();
     setNetworkEnv(info.env);
+  };
+
+  const getDaysSinceFirstUse = (): number => {
+    if (!store.firstUseDate) return 1;
+    const diff = Date.now() - new Date(store.firstUseDate).getTime();
+    return Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24)) + 1);
   };
 
   const langLabel = LANGUAGES.find((l) => l.key === store.language);
@@ -202,9 +215,15 @@ export function SettingsScreen() {
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <View style={[styles.inner, isDesktop && styles.innerDesktop]}>
-          <HollowText variant="heading" style={[styles.title, isDesktop && styles.titleDesktop]}>
-            {t('settings.title')}
-          </HollowText>
+          {/* Brand greeting */}
+          <View style={styles.greetingArea}>
+            <HollowText variant="heading" style={styles.greetingTitle}>
+              {getGreetingText()}{store.nickname ? `，${store.nickname}` : ''}
+            </HollowText>
+            <HollowText variant="caption" color={colors.textMuted}>
+              留白陪伴你的第 {getDaysSinceFirstUse()} 天
+            </HollowText>
+          </View>
 
           {/* Profile */}
           <SettingsGroup title={t('settings.profile')}>
@@ -225,8 +244,7 @@ export function SettingsScreen() {
 
           {/* Privacy & Security */}
           <SettingsGroup title={t('settings.privacy')}>
-            <SettingsRow icon="shield" label={t('settings.e2ee')} value={t('settings.e2eeActive')} valueColor={colors.success} />
-            <SettingsRow icon="hard-drive" label={t('settings.localStorage')} value={t('settings.e2eeActive')} valueColor={colors.success} />
+            <SettingsRow icon="shield" label="端到端加密 · 本地存储" value={t('settings.e2eeActive')} valueColor={colors.success} />
             <SettingsRow
               icon="lock"
               label={t('settings.biometricLock')}
@@ -241,7 +259,6 @@ export function SettingsScreen() {
             />
             <SettingsRow icon="download" label={t('memory.export')} onPress={handleExportMemory} />
             <SettingsRow icon="upload" label={t('memory.import')} showArrow onPress={() => navigation.navigate('MemoryImport')} />
-            <SettingsRow icon="alert-triangle" label={t('settings.eraseAll')} danger onPress={handleErase} />
           </SettingsGroup>
 
           {/* AI Settings */}
@@ -406,6 +423,13 @@ export function SettingsScreen() {
               value="1.0.0"
             />
           </SettingsGroup>
+
+          {/* Advanced (danger zone) */}
+          <View style={styles.advancedSection}>
+            <SettingsGroup title={t('settings.advanced') ?? '高级'}>
+              <SettingsRow icon="alert-triangle" label={t('settings.eraseAll')} danger onPress={handleErase} />
+            </SettingsGroup>
+          </View>
         </View>
       </ScrollView>
 
@@ -453,11 +477,14 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingTop: spacing.xl,
   },
-  title: {
+  greetingArea: {
     marginBottom: spacing.xl,
   },
-  titleDesktop: {
-    marginBottom: spacing['2xl'],
+  greetingTitle: {
+    marginBottom: spacing.xs,
+  },
+  advancedSection: {
+    marginTop: spacing.xl,
   },
   apiInputRow: {
     paddingVertical: spacing.sm,

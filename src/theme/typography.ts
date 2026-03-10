@@ -24,3 +24,13 @@ export const lineHeight = {
   normal: 1.5,
   relaxed: 1.7,
 } as const;
+
+/** Semantic type scale aliases for page-level typography */
+export const typeScale = {
+  pageTitle: 28,
+  sectionTitle: 20,
+  cardTitle: 17,
+  body: 15,
+  caption: 13,
+  micro: 11,
+} as const;

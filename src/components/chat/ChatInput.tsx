@@ -1,12 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, TextInput, TouchableOpacity, Image, Alert, Platform } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing, borderRadius } from '../../theme';
@@ -26,19 +19,6 @@ export function ChatInput({ onSend, onMicPress, onCancel, isStreaming, disabled 
   const { t } = useI18n();
   const [text, setText] = useState('');
   const [pendingImage, setPendingImage] = useState<ImageAttachment | null>(null);
-  const glowOpacity = useSharedValue(0.3);
-
-  useEffect(() => {
-    glowOpacity.value = withRepeat(
-      withTiming(0.7, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true,
-    );
-  }, []);
-
-  const glowStyle = useAnimatedStyle(() => ({
-    borderColor: `rgba(212, 165, 116, ${glowOpacity.value})`,
-  }));
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -101,7 +81,7 @@ export function ChatInput({ onSend, onMicPress, onCancel, isStreaming, disabled 
       )}
 
       {/* Input row */}
-      <Animated.View style={[styles.container, glowStyle]}>
+      <View style={styles.container}>
         <TouchableOpacity onPress={onMicPress} style={styles.iconBtn}>
           <Feather name="mic" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -147,7 +127,7 @@ export function ChatInput({ onSend, onMicPress, onCancel, isStreaming, disabled 
             <Feather name="send" size={18} color={canSend ? colors.background : colors.textMuted} />
           </TouchableOpacity>
         )}
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -160,8 +140,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     backgroundColor: colors.surface,
   },
   previewRow: {

@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
   Easing,
   runOnJS,
+  FadeInDown,
 } from 'react-native-reanimated';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { HollowText } from '../../components/common/HollowText';
@@ -34,6 +35,7 @@ function AnimatedSessionCard({
   onLongPress,
   onArchive,
   isDesktop,
+  index,
 }: {
   session: Session;
   isDestroying: boolean;
@@ -42,6 +44,7 @@ function AnimatedSessionCard({
   onLongPress: () => void;
   onArchive: () => void;
   isDesktop: boolean;
+  index: number;
 }) {
   const opacity = useSharedValue(1);
   const scale = useSharedValue(1);
@@ -73,7 +76,7 @@ function AnimatedSessionCard({
   }));
 
   return (
-    <Animated.View style={animatedStyle}>
+    <Animated.View style={animatedStyle} entering={FadeInDown.delay(index * 50).duration(300)}>
       <TouchableOpacity
         style={[styles.sessionCard, isDesktop && styles.sessionCardDesktop]}
         onPress={onPress}
@@ -215,7 +218,7 @@ export function ChatListScreen() {
     </TouchableOpacity>
   );
 
-  const renderSession = ({ item }: { item: Session }) => (
+  const renderSession = ({ item, index }: { item: Session; index: number }) => (
     <Swipeable
       renderRightActions={() => renderRightActions(item.id)}
       overshootRight={false}
@@ -228,6 +231,7 @@ export function ChatListScreen() {
         onLongPress={() => handleDestroy(item.id)}
         onArchive={() => handleArchive(item.id)}
         isDesktop={isDesktop}
+        index={index}
       />
     </Swipeable>
   );
@@ -316,9 +320,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 2,
-    borderLeftColor: 'rgba(212, 165, 116, 0.3)',
+    borderColor: 'rgba(212, 165, 116, 0.08)',
   },
   sessionHeader: {
     flexDirection: 'row',
@@ -386,11 +388,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
+    elevation: 6,
     shadowColor: colors.amber,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   headerDesktop: {
     paddingTop: spacing['2xl'],

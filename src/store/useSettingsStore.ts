@@ -13,6 +13,7 @@ interface SettingsState {
   language: LanguageSetting;
   autoDestructDays: AutoDestructDays;
   apiKeys: Record<string, string>;
+  firstUseDate: string | null;
   isLoaded: boolean;
 
   loadSettings: () => Promise<void>;
@@ -65,6 +66,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   language: 'auto',
   autoDestructDays: null,
   apiKeys: {},
+  firstUseDate: null,
   isLoaded: false,
 
   loadSettings: async () => {
@@ -72,6 +74,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const all = await settingsRepo.getAllSettings();
       const apiKeys = await loadApiKeys();
       const parsedAutoDestruct = all.autoDestructDays ? Number(all.autoDestructDays) as AutoDestructDays : null;
+      // Record first use date if not already set
+      let firstUseDate = all.firstUseDate ?? null;
+      if (!firstUseDate) {
+        firstUseDate = new Date().toISOString();
+        persist('firstUseDate', firstUseDate);
+      }
+
       set({
         nickname: all.nickname ?? '',
         conversationStyle: (all.conversationStyle as ConversationStyle) ?? 'empathetic',
@@ -81,6 +90,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         language: (all.language as LanguageSetting) ?? 'auto',
         autoDestructDays: parsedAutoDestruct,
         apiKeys,
+        firstUseDate,
         isLoaded: true,
       });
     } catch (e) {

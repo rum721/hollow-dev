@@ -8,7 +8,7 @@ import Animated, {
   withDelay,
   Easing,
 } from 'react-native-reanimated';
-import { colors, spacing } from '../../theme';
+import { colors, spacing, borderRadius } from '../../theme';
 
 export function TypingIndicator() {
   const dot1 = useSharedValue(0.3);
@@ -32,8 +32,7 @@ export function TypingIndicator() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.accentLine} />
-      <View style={styles.dots}>
+      <View style={styles.bubble}>
         <Animated.View style={[styles.dot, s1]} />
         <Animated.View style={[styles.dot, s2]} />
         <Animated.View style={[styles.dot, s3]} />
@@ -44,27 +43,24 @@ export function TypingIndicator() {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.xs,
   },
-  accentLine: {
-    width: 3,
-    height: 24,
-    backgroundColor: colors.amber,
-    borderRadius: 2,
-    marginRight: spacing.md,
-  },
-  dots: {
+  bubble: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingTop: 4,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderTopLeftRadius: borderRadius.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    alignSelf: 'flex-start',
   },
   dot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: colors.textAI,
+    backgroundColor: colors.textSecondary,
   },
 });

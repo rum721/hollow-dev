@@ -13,6 +13,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing } from '../../theme';
 import { HollowText } from '../../components/common/HollowText';
 import { AmberGlowDot } from '../../components/common/AmberGlowDot';
+import { GlowParticles } from '../../components/common/GlowParticles';
 import { useI18n } from '../../i18n';
 import { useResponsive } from '../../hooks/useResponsive';
 import type { RootStackParamList } from '../../types/navigation';
@@ -77,6 +78,7 @@ export function LaunchScreen() {
   return (
     <TouchableWithoutFeedback onPress={handleEnter}>
       <View style={styles.container}>
+        <GlowParticles />
         <View style={styles.content}>
           <Animated.View style={[styles.glowArea, dotAnimatedStyle]}>
             <AmberGlowDot size={isDesktop ? 60 : 50} />

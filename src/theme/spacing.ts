@@ -18,3 +18,14 @@ export const borderRadius = {
   xl: 24,
   full: 9999,
 } as const;
+
+/** Semantic layout tokens for page-level spacing (does not change base spacing) */
+export const layout = {
+  pagePaddingH: 20,
+  sectionGap: 16,
+  cardPadding: 16,
+  cardGap: 12,
+  itemGap: 8,
+  messageGapSame: 4,
+  messageGapDiff: 16,
+} as const;

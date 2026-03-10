@@ -3,6 +3,7 @@ import { randomUUID } from 'expo-crypto';
 import type { Session, Message, SessionStatus, ImageAttachment } from '../types/chat';
 import * as conversationRepo from '../services/storage/conversationRepo';
 import { logError } from '../utils/errorLogger';
+import { generateSessionTitle } from '../utils/sessionNames';
 
 interface ChatState {
   sessions: Session[];
@@ -65,19 +66,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const count = await conversationRepo.getSessionCount().catch(() => get().sessions.length);
     const id = randomUUID();
 
-    // Generate time-based default title
-    const now = new Date();
-    const hour = now.getHours();
-    let timeLabel: string;
-    if (hour >= 5 && hour < 12) timeLabel = '清晨';
-    else if (hour >= 12 && hour < 14) timeLabel = '午间';
-    else if (hour >= 14 && hour < 18) timeLabel = '午后';
-    else if (hour >= 18 && hour < 22) timeLabel = '傍晚';
-    else timeLabel = '深夜';
-
     const session: Session = {
       id,
-      title: `${timeLabel}的留白`,
+      title: generateSessionTitle(),
       sessionNumber: count + 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

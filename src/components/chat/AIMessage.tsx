@@ -1,10 +1,9 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing } from '../../theme';
-import { HollowText } from '../common/HollowText';
-import { formatTime } from '../../utils/formatters';
+import { colors, spacing, borderRadius } from '../../theme';
 
 interface Props {
   content: string;
@@ -114,7 +113,7 @@ function renderInline(text: string): React.ReactNode[] {
   return parts.length > 0 ? parts : [<Text key="plain">{text}</Text>];
 }
 
-export function AIMessage({ content, createdAt, isStreaming, onCopy }: Props) {
+export function AIMessage({ content, isStreaming, onCopy }: Props) {
   const handleLongPress = async () => {
     await Clipboard.setStringAsync(content);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -122,31 +121,27 @@ export function AIMessage({ content, createdAt, isStreaming, onCopy }: Props) {
   };
 
   return (
-    <TouchableOpacity
-      onLongPress={isStreaming ? undefined : handleLongPress}
-      activeOpacity={isStreaming ? 1 : 0.7}
-      style={styles.container}
-    >
-      <View style={styles.accentLine} />
-      <View style={styles.content} pointerEvents="none">
-        <View>
-          {renderMarkdown(content)}
-          {isStreaming ? <Text style={mdStyles.cursor}>|</Text> : null}
+    <Animated.View entering={FadeInDown.duration(200)}>
+      <TouchableOpacity
+        onLongPress={isStreaming ? undefined : handleLongPress}
+        activeOpacity={isStreaming ? 1 : 0.7}
+        style={styles.container}
+      >
+        <View style={styles.bubble} pointerEvents="none">
+          <View>
+            {renderMarkdown(content)}
+            {isStreaming ? <Text style={mdStyles.cursor}>|</Text> : null}
+          </View>
         </View>
-        {createdAt && (
-          <HollowText variant="label" color={colors.amber} style={styles.time}>
-            {formatTime(createdAt)}
-          </HollowText>
-        )}
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
 const mdStyles = StyleSheet.create({
-  paragraph: { color: colors.textAI, fontSize: 16, lineHeight: 26 },
+  paragraph: { color: colors.textPrimary, fontSize: 16, lineHeight: 26 },
   bold: { color: colors.textPrimary, fontWeight: '600' },
-  italic: { color: colors.textAI, fontStyle: 'italic' },
+  italic: { color: colors.textPrimary, fontStyle: 'italic' },
   codeInline: {
     backgroundColor: colors.surfaceLight,
     color: colors.amberLight,
@@ -164,23 +159,21 @@ const mdStyles = StyleSheet.create({
   blockquoteText: { color: colors.textSecondary, fontSize: 16, lineHeight: 24 },
   h2: { color: colors.textPrimary, fontSize: 18, fontWeight: '600', marginVertical: 6, lineHeight: 26 },
   h3: { color: colors.textPrimary, fontSize: 17, fontWeight: '600', marginVertical: 4, lineHeight: 24 },
-  listItem: { color: colors.textAI, fontSize: 16, lineHeight: 26, paddingLeft: 8 },
+  listItem: { color: colors.textPrimary, fontSize: 16, lineHeight: 26, paddingLeft: 8 },
   paragraphBreak: { height: 8 },
   cursor: { color: colors.amber, fontSize: 16 },
 });
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm,
   },
-  accentLine: {
-    width: 2,
-    backgroundColor: 'rgba(212, 165, 116, 0.4)',
-    borderRadius: 1,
-    marginRight: spacing.md,
+  bubble: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderTopLeftRadius: borderRadius.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    maxWidth: '90%',
   },
-  content: { flex: 1, maxWidth: '90%' },
-  time: { marginTop: spacing.xs },
 });
