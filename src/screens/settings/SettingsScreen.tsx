@@ -244,7 +244,7 @@ export function SettingsScreen() {
 
           {/* Privacy & Security */}
           <SettingsGroup title={t('settings.privacy')}>
-            <SettingsRow icon="shield" label="端到端加密 · 本地存储" value={t('settings.e2eeActive')} valueColor={colors.success} />
+            <SettingsRow icon="shield" label={t('settings.privacySummary')} value={t('settings.privacySummaryActive')} valueColor={colors.success} />
             <SettingsRow
               icon="lock"
               label={t('settings.biometricLock')}

@@ -173,7 +173,20 @@
     "termsOfService": "服务条款",
     "version": "版本",
     "premiumRoutingHint": "启用智能路由：需同时添加 OpenAI 和 Anthropic API 密钥",
-    "apiKeyRequired": "需要 API 密钥才能开始对话"
+    "apiKeyRequired": "需要 API 密钥才能开始对话",
+    "advanced": "高级",
+    "privacySummary": "端到端加密 · 本地存储",
+    "privacySummaryActive": "已启用",
+    "greeting": "留白陪伴你的第 {{days}} 天",
+    "exportMemory": "导出我的记忆",
+    "importMemory": "导入记忆",
+    "freeMode": "免费体验模式",
+    "freeModeDesc": "当前使用内置模型，无需配置即可对话",
+    "freeModeUsage": "今日已用 {{used}} / {{limit}} 条",
+    "networkEnv": "网络环境",
+    "networkOverseas": "海外",
+    "networkChina": "国内",
+    "apiKeyUnlockHint": "配置自己的 API Key 可解锁更多模型和无限消息"
   },
   "upgrade": {
     "freeLimit": "今天的免费消息额度已用完（每天5条）。",

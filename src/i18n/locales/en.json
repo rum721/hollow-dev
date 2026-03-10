@@ -173,7 +173,20 @@
     "termsOfService": "Terms of Service",
     "version": "Version",
     "premiumRoutingHint": "Enable smart routing: add both OpenAI and Anthropic API keys",
-    "apiKeyRequired": "API key required to start chatting"
+    "apiKeyRequired": "API key required to start chatting",
+    "advanced": "Advanced",
+    "privacySummary": "End-to-end encrypted · Local storage",
+    "privacySummaryActive": "Active",
+    "greeting": "留白 has been with you for {{days}} day(s)",
+    "exportMemory": "Export My Memories",
+    "importMemory": "Import Memories",
+    "freeMode": "Free Experience Mode",
+    "freeModeDesc": "Currently using built-in models, no configuration needed",
+    "freeModeUsage": "Used today {{used}} / {{limit}}",
+    "networkEnv": "Network Environment",
+    "networkOverseas": "Overseas",
+    "networkChina": "China",
+    "apiKeyUnlockHint": "Configure your own API Key to unlock more models and unlimited messages"
   },
   "upgrade": {
     "freeLimit": "You've reached today's free message limit (5/day).",
